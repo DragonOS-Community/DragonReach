@@ -1,0 +1,8 @@
+[Unit]
+Description=test
+
+[Service]
+ExecStart=/path/to/my-service run docker /path/to/my-service run / make
+Restart=always
+
+[Install]
