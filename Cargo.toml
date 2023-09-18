@@ -10,10 +10,15 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#drstd = {git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", revision = "a4d693c682"}
-#lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
-lazy_static = {version = "1.4.0"}
 hashbrown = "0.11"
+cfg-if = { version = "1.0"}
+
+[target.'cfg(target_os = "dragonos")'.dependencies]
+drstd = {git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", revision = "a4d693c682"}
+lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
+
+[target.'cfg(not(target_os = "dragonos"))'.dependencies]
+lazy_static = {version = "1.4.0"}
 
 [profile.release]
 panic = 'abort'

@@ -1,29 +1,26 @@
+use crate::error::ParseErrorType;
 use crate::unit::{BaseUnit, Unit};
 use crate::{
     error::ParseError,
     unit::{service::ServiceUnitAttr, BaseUnitAttr, InstallUnitAttr, UnitType},
 };
-use core::cell::RefCell;
-//use drstd as std;
+
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use std::boxed::Box;
 use std::format;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::rc::Rc;
 use std::string::String;
 use std::vec::Vec;
+use std::string::ToString;
 
-use self::parse_base_unit::BaseUnitParser;
-
-pub mod parse_base_unit;
+pub mod parse_target;
 pub mod parse_service;
-mod parse_util;
-
-pub trait AttrParse<T> {
-    fn parse_and_set_attribute(unit: &mut T, attr: &str, val: &str) -> Result<(), ParseError>;
-}
+pub mod parse_util;
 
 //对应Unit段类型
 #[derive(PartialEq, Clone, Copy)]
@@ -35,7 +32,7 @@ pub enum Segment {
 }
 
 lazy_static! {
-    static ref UNIT_SUFFIX: HashMap<&'static str, UnitType> = {
+    pub static ref UNIT_SUFFIX: HashMap<&'static str, UnitType> = {
         let mut table = HashMap::new();
         table.insert("automount", UnitType::Automount);
         table.insert("device", UnitType::Device);
@@ -51,14 +48,14 @@ lazy_static! {
         table.insert("timer", UnitType::Timer);
         table
     };
-    static ref SEGMENT_TABLE: HashMap<&'static str, Segment> = {
+    pub static ref SEGMENT_TABLE: HashMap<&'static str, Segment> = {
         let mut table = HashMap::new();
         table.insert("[Unit]", Segment::Unit);
         table.insert("[Install]", Segment::Install);
         table.insert("[Service]", Segment::Service);
         table
     };
-    static ref INSTALL_UNIT_ATTR_TABLE: HashMap<&'static str, InstallUnitAttr> = {
+    pub static ref INSTALL_UNIT_ATTR_TABLE: HashMap<&'static str, InstallUnitAttr> = {
         let mut unit_attr_table = HashMap::new();
         unit_attr_table.insert("WantedBy", InstallUnitAttr::WantedBy);
         unit_attr_table.insert("RequiredBy", InstallUnitAttr::RequiredBy);
@@ -66,7 +63,7 @@ lazy_static! {
         unit_attr_table.insert("Alias", InstallUnitAttr::Alias);
         unit_attr_table
     };
-    static ref SERVICE_UNIT_ATTR_TABLE: HashMap<&'static str, ServiceUnitAttr> = {
+    pub static ref SERVICE_UNIT_ATTR_TABLE: HashMap<&'static str, ServiceUnitAttr> = {
         let mut unit_attr_table = HashMap::new();
         unit_attr_table.insert("Type", ServiceUnitAttr::Type);
         unit_attr_table.insert("RemainAfterExit", ServiceUnitAttr::RemainAfterExit);
@@ -90,7 +87,7 @@ lazy_static! {
         unit_attr_table.insert("MountFlags", ServiceUnitAttr::MountFlags);
         unit_attr_table
     };
-    static ref BASE_UNIT_ATTR_TABLE: HashMap<&'static str, BaseUnitAttr> = {
+    pub static ref BASE_UNIT_ATTR_TABLE: HashMap<&'static str, BaseUnitAttr> = {
         let mut unit_attr_table = HashMap::new();
         unit_attr_table.insert("Description", BaseUnitAttr::Description);
         unit_attr_table.insert("Documentation", BaseUnitAttr::Documentation);
@@ -104,7 +101,7 @@ lazy_static! {
         unit_attr_table.insert("Conflicts", BaseUnitAttr::Conflicts);
         unit_attr_table
     };
-    static ref BASE_IEC: HashMap<&'static str, u64> = {
+    pub static ref BASE_IEC: HashMap<&'static str, u64> = {
         let mut table = HashMap::new();
         table.insert(
             "E",
@@ -119,7 +116,7 @@ lazy_static! {
         table.insert("", 1u64);
         table
     };
-    static ref BASE_SI: HashMap<&'static str, u64> = {
+    pub static ref BASE_SI: HashMap<&'static str, u64> = {
         let mut table = HashMap::new();
         table.insert(
             "E",
@@ -134,7 +131,7 @@ lazy_static! {
         table.insert("", 1u64);
         table
     };
-    static ref SEC_UNIT_TABLE: HashMap<&'static str, u64> = {
+    pub static ref SEC_UNIT_TABLE: HashMap<&'static str, u64> = {
         let mut table = HashMap::new();
         table.insert("h", 60 * 60 * 1000 * 1000 * 1000);
         table.insert("min", 60 * 1000 * 1000 * 1000);
@@ -157,7 +154,7 @@ impl UnitParser {
     /// 从path获取到BufReader,此方法将会检验文件类型
     ///
     /// @param path 需解析的文件路径
-    /// 
+    ///
     /// @param unit_type 指定Unit类型
     ///
     /// @return 成功则返回对应BufReader，否则返回Err
@@ -165,21 +162,21 @@ impl UnitParser {
         let suffix = match path.rfind('.') {
             Some(idx) => &path[idx + 1..],
             None => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
             }
         };
         let u_type = UNIT_SUFFIX.get(suffix);
         if u_type.is_none() {
-            return Err(ParseError::EFILE);
+            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
         }
         if *(u_type.unwrap()) != unit_type {
-            return Err(ParseError::EFILE);
+            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
         }
 
         let file = match File::open(path) {
             Ok(file) => file,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
             }
         };
         return Ok(io::BufReader::new(file));
@@ -188,24 +185,18 @@ impl UnitParser {
     /// @brief 将path路径的文件解析为unit_type类型的Unit
     ///
     /// 该方法解析每个Unit共有的段(Unit,Install),其余独有的段属性将会交付T类型的Unit去解析
-    /// TODO:该方法多态性做得不是很优雅，后期可以重构一下
     ///
     /// @param path 需解析的文件路径
-    /// 
-    /// @param unit_type 指定Unit类型
-    /// 
-    /// @param unit 需要的unit对象,解析结果会放置在里面,将会调用unit的set_attr方法设置独有属性
-    /// 
-    /// @param unit_base 共有段的解析结果将会放置在unit_base中
     ///
-    /// @return 解析成功则返回Ok(())，否则返回Err
-    pub fn parse<T: Unit>(
-        path: &str,
-        unit_type: UnitType,
-        unit: &mut T,
-        unit_base: &mut BaseUnit,
-    ) -> Result<(), ParseError> {
-        unit_base.unit_type = unit_type;
+    /// @param unit_type 指定Unit类型
+    ///
+    /// @return 解析成功则返回Ok(Rc<T>)，否则返回Err
+    pub fn parse<T: Unit + Default>(path: &str, unit_type: UnitType) -> Result<Rc<T>, ParseError> {
+        let mut unit: T = T::default();
+        let mut unit_base = BaseUnit::default();
+        //设置unit类型标记
+        unit_base.set_unit_type(unit_type);
+
         let reader = UnitParser::get_unit_reader(path, unit_type)?;
 
         //用于记录当前段的类型
@@ -241,7 +232,7 @@ impl UnitParser {
             }
             if segment == Segment::None {
                 //未找到段名则不能继续匹配
-                return Err(ParseError::ESyntaxError);
+                return Err(ParseError::new(ParseErrorType::ESyntaxError, path.to_string(),i + 1));
             }
 
             //下面进行属性匹配
@@ -260,35 +251,52 @@ impl UnitParser {
                 break;
             }
             //=号分割后第一个元素为属性，后面的均为值，若一行出现两个等号则是语法错误
-            let attr_val_map = line.split('=').collect::<Vec<&str>>();
-            if attr_val_map.len() != 2 {
-                return Err(ParseError::ESyntaxError);
-            }
-
+            let (attr_str,val_str) = match line.find('=') {
+                Some(idx) => {
+                    (line[..idx].trim(), line[idx+1..].trim())
+                }
+                None => {
+                    return Err(ParseError::new(ParseErrorType::ESyntaxError, path.to_string(),i + 1));
+                }
+            };
             //首先匹配所有unit文件都有的unit段和install段
-            if BASE_UNIT_ATTR_TABLE.get(attr_val_map[0]).is_some() {
+            if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {
                 if segment != Segment::Unit {
-                    return Err(ParseError::EINVAL);
+                    return Err(ParseError::new(ParseErrorType::EINVAL, path.to_string(),i + 1));
                 }
-                BaseUnitParser::parse_and_set_base_unit_attribute(
-                    &mut unit_base.unit_part,
-                    BASE_UNIT_ATTR_TABLE.get(attr_val_map[0]).unwrap(),
-                    attr_val_map[1],
-                )?
-            } else if INSTALL_UNIT_ATTR_TABLE.get(attr_val_map[0]).is_some() {
+                if let Err(e) = unit_base.set_unit_part_attr(
+                    BASE_UNIT_ATTR_TABLE.get(attr_str).unwrap(),
+                    val_str,
+                ){
+                    let mut e = e.clone();
+                    e.set_file(path);
+                    e.set_linenum(i + 1);
+                    return Err(e);
+                }
+            } else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {
                 if segment != Segment::Install {
-                    return Err(ParseError::EINVAL);
+                    return Err(ParseError::new(ParseErrorType::EINVAL, path.to_string(),i + 1));
                 }
-                BaseUnitParser::parse_and_set_base_install_attribute(
-                    &mut unit_base.install_part,
-                    INSTALL_UNIT_ATTR_TABLE.get(attr_val_map[0]).unwrap(),
-                    attr_val_map[1],
-                )?
+                if let Err(e) = unit_base.set_install_part_attr(
+                    INSTALL_UNIT_ATTR_TABLE.get(attr_str).unwrap(),
+                    val_str,
+                ){
+                    let mut e = e.clone();
+                    e.set_file(path);
+                    e.set_linenum(i + 1);
+                    return Err(e);
+                }
             } else {
-                unit.set_attr(segment, attr_val_map[0], attr_val_map[1])?;
+                if let Err(e) = unit.set_attr(segment, attr_str, val_str){
+                    let mut e = e.clone();
+                    e.set_file(path);
+                    e.set_linenum(i + 1);
+                    return Err(e);
+                }
             }
             i += 1;
         }
-        return Ok(());
+        unit.set_unit_base(unit_base);
+        return Ok(Rc::new(unit));
     }
 }

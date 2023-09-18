@@ -1,14 +1,23 @@
 use crate::{
     contants::{AF_INET, AF_INET6, IPV4_MIN_MTU, IPV6_MIN_MTU, PRIO_MAX, PRIO_MIN},
-    error::ParseError,
+    error::{ParseError, ParseErrorType},
     task::cmdtask::CmdTask,
     unit::{Unit, Url},
     FileDescriptor,
 };
-//use drstd::std;
-use std::{format, fs, path::Path, rc::Rc, string::String, string::ToString, vec, vec::Vec};
 
-use super::{parse_service::ServiceParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE};
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+
+use std::{
+    format, fs, path::Path, print, println, rc::Rc, string::String, string::ToString, vec, vec::Vec, os::unix::prelude::PermissionsExt,
+};
+
+use std::os::unix::fs::MetadataExt;
+
+use super::{
+    parse_service::ServiceParser, parse_target::TargetParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE,
+};
 
 #[derive(PartialEq)]
 pub enum SizeBase {
@@ -38,7 +47,7 @@ impl UnitParseUtil {
             return Ok(false);
         }
 
-        return Err(ParseError::EINVAL);
+        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
     }
 
     /// @brief 解析pid
@@ -54,19 +63,19 @@ impl UnitParseUtil {
         let pid_ul = match s.parse::<u64>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
         let pid: i32 = pid_ul as i32;
 
         if (pid as u64) != pid_ul {
             //如果在从pid_t转换为u64之后与之前不等，则说明发生了截断，返回错误
-            return Err(ParseError::ERANGE);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         if pid < 0 {
             //pid小于0不合法
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok(pid);
@@ -84,13 +93,13 @@ impl UnitParseUtil {
         let m = match u32::from_str_radix(s, 8) {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         //如果模式大于权限的最大值则为非法权限，返回错误
         if m > 0o7777 {
-            return Err(ParseError::ERANGE);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok(m);
@@ -108,12 +117,12 @@ impl UnitParseUtil {
         let ret: i32 = match s.parse::<i32>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         if ret <= 0 {
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok(ret);
@@ -134,13 +143,13 @@ impl UnitParseUtil {
             Ok(val) => val,
             Err(_) => {
                 //针对非法字符出错时
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         //针对数据溢出时的报错
         if mtu > u32::MAX as u64 {
-            return Err(ParseError::ERANGE);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         let mtu: u32 = mtu as u32;
@@ -152,7 +161,7 @@ impl UnitParseUtil {
         } else if family == AF_INET {
             min_mtu = IPV4_MIN_MTU;
         } else {
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok(mtu);
@@ -184,7 +193,7 @@ impl UnitParseUtil {
                 let fraction = match fraction[1..].parse::<u64>() {
                     Ok(val) => val,
                     Err(_) => {
-                        return Err(ParseError::EINVAL);
+                        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                     }
                 };
                 (integer, fraction)
@@ -198,14 +207,14 @@ impl UnitParseUtil {
             factor = match BASE_IEC.get(suffix) {
                 Some(val) => *val,
                 None => {
-                    return Err(ParseError::EINVAL);
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                 }
             }
         } else if base == SizeBase::Si {
             factor = match BASE_SI.get(suffix) {
                 Some(val) => *val,
                 None => {
-                    return Err(ParseError::EINVAL);
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                 }
             }
         }
@@ -226,17 +235,17 @@ impl UnitParseUtil {
         let size: u64 = match s.parse::<u64>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         if size < 512 || size > 4096 {
-            return Err(ParseError::ERANGE);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         //判断是否为2的幂，如果不是则报错
         if (size & (size - 1)) != 0 {
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok(size);
@@ -258,7 +267,7 @@ impl UnitParseUtil {
                 let ret = match s.parse::<u32>() {
                     Ok(val) => val,
                     Err(_) => {
-                        return Err(ParseError::EINVAL);
+                        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                     }
                 };
                 return Ok((ret, ret));
@@ -272,14 +281,14 @@ impl UnitParseUtil {
         let l = match l.parse::<u32>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
         let r = r.trim();
         let r = match r.parse::<u32>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
@@ -298,12 +307,12 @@ impl UnitParseUtil {
         let fd = match s.parse::<i32>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         if fd < 0 {
-            return Err(ParseError::EBADF);
+            return Err(ParseError::new(ParseErrorType::EBADF, String::new(), 0));
         }
 
         return Ok(FileDescriptor(fd as usize));
@@ -321,12 +330,12 @@ impl UnitParseUtil {
         let nice = match s.parse::<i8>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         if nice > PRIO_MAX || nice < PRIO_MIN {
-            return Err(ParseError::ERANGE);
+            return Err(ParseError::new(ParseErrorType::ERANGE, String::new(), 0));
         }
 
         return Ok(nice);
@@ -344,12 +353,12 @@ impl UnitParseUtil {
         let port = match s.parse::<u16>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         if port == 0 {
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok(port);
@@ -368,7 +377,7 @@ impl UnitParseUtil {
         let l = l as u16;
         let h = h as u16;
         if l <= 0 || l >= 65535 || h <= 0 || h >= 65535 {
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
         return Ok((l, h));
@@ -385,12 +394,12 @@ impl UnitParseUtil {
         let len = match s.parse::<u32>() {
             Ok(val) => val,
             Err(_) => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         if len > 128 {
-            return Err(ParseError::ERANGE);
+            return Err(ParseError::new(ParseErrorType::ERANGE, String::new(), 0));
         }
 
         return Ok(len);
@@ -437,22 +446,24 @@ impl UnitParseUtil {
         let idx = match path.rfind('.') {
             Some(val) => val,
             None => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
         };
 
         if idx == path.len() - 1 {
             //处理非法文件xxxx. 类型
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
         }
 
         let suffix = &path[idx + 1..];
 
         //通过文件后缀分发给不同类型的Unit解析器解析
-        let unit = match suffix {
+        let unit: Rc<dyn Unit> = match suffix {
+            //TODO: 目前为递归，后续应考虑从DragonReach管理的Unit表中寻找是否有该Unit，并且通过记录消除递归
             "service" => ServiceParser::parse(path)?,
+            "target" => TargetParser::parse(path)?,
             _ => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
         };
 
@@ -489,8 +500,8 @@ impl UnitParseUtil {
             }
 
             //得到的非绝对路径则不符合语法要求，报错
-            if !UnitParseUtil::is_absolute_path(path) {
-                return Err(ParseError::EINVAL);
+            if !UnitParseUtil::is_valid_exec_path(path) {
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
 
             cmd_task.path = String::from(path);
@@ -498,7 +509,7 @@ impl UnitParseUtil {
             //i += 1,继续匹配下一个单词
             i += 1;
             let mut cmd_str = String::new();
-            while i < cmds.len() && !UnitParseUtil::is_absolute_path(cmds[i]) {
+            while i < cmds.len() && !UnitParseUtil::is_valid_exec_path(cmds[i]) {
                 //命令可能会有多个单词，将多个命令整理成一个
                 let cmd = cmds[i];
                 cmd_str = format!("{} {}", cmd_str, cmd);
@@ -511,14 +522,55 @@ impl UnitParseUtil {
         return Ok(tasks);
     }
 
-    /// @brief 判断是否为绝对路径
+    /// @brief 判断是否为绝对路径,以及指向是否为可执行文件或者sh脚本
     ///
+    /// 目前该方法仅判断是否为绝对路径
+    /// 
     /// @param path 路径
     ///
     /// @return 解析成功则返回true，否则返回false
-    pub fn is_absolute_path(path: &str) -> bool {
+    pub fn is_valid_exec_path(path: &str) -> bool {
+        if !path.starts_with("/"){
+            return false;
+        }
+        return true;
+
+        //TODO: 后续应判断该文件是否为合法文件
+        //let path = Path::new(path);
+        //return Self::is_executable_file(path) || Self::is_shell_script(path);
+    }
+
+    pub fn is_valid_file(path: &str) -> bool {
+        if !path.starts_with("/"){
+            return false;
+        }
+        
         let path = Path::new(path);
-        path.is_absolute()
+        if let Ok(matadata) = fs::metadata(path) {
+            return matadata.is_file();
+        }
+
+        return false;
+    }
+
+    fn is_executable_file(path: &Path) -> bool {
+        if let Ok(metadata) = fs::metadata(path) {
+            // 检查文件类型是否是普通文件并且具有可执行权限
+            if metadata.is_file(){
+                let permissions = metadata.permissions().mode();
+                return permissions & 0o111 != 0;
+            }
+        }
+        false
+    }
+
+    fn is_shell_script(path: &Path) -> bool {
+        if let Some(extension) = path.extension() {
+            if extension == "sh" {
+                return true;
+            }
+        }
+        false
     }
 
     /// @brief 将对应的str解析为us(微秒)
@@ -539,7 +591,9 @@ impl UnitParseUtil {
                 //解析整数部分
                 integer = match s[..idx].parse::<u64>() {
                     Ok(val) => val,
-                    Err(_) => return Err(ParseError::EINVAL),
+                    Err(_) => {
+                        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0))
+                    }
                 };
                 //获得小数+单位的字符串
                 let frac_and_unit = &s[(idx + 1)..];
@@ -548,7 +602,13 @@ impl UnitParseUtil {
                         //匹配小数部分
                         frac = match frac_and_unit[..val].parse::<u64>() {
                             Ok(val) => val,
-                            Err(_) => return Err(ParseError::EINVAL),
+                            Err(_) => {
+                                return Err(ParseError::new(
+                                    ParseErrorType::EINVAL,
+                                    String::new(),
+                                    0,
+                                ))
+                            }
                         };
                         //单位部分
                         unit = &frac_and_unit[val..];
@@ -557,7 +617,13 @@ impl UnitParseUtil {
                         //没有单位的情况，直接匹配小数
                         frac = match frac_and_unit.parse::<u64>() {
                             Ok(val) => val,
-                            Err(_) => return Err(ParseError::EINVAL),
+                            Err(_) => {
+                                return Err(ParseError::new(
+                                    ParseErrorType::EINVAL,
+                                    String::new(),
+                                    0,
+                                ))
+                            }
                         };
                         unit = "";
                     }
@@ -569,14 +635,26 @@ impl UnitParseUtil {
                     Some(idx) => {
                         integer = match s[..idx].parse::<u64>() {
                             Ok(val) => val,
-                            Err(_) => return Err(ParseError::EINVAL),
+                            Err(_) => {
+                                return Err(ParseError::new(
+                                    ParseErrorType::EINVAL,
+                                    String::new(),
+                                    0,
+                                ))
+                            }
                         };
                         unit = &s[idx..];
                     }
                     None => {
                         integer = match s.parse::<u64>() {
                             Ok(val) => val,
-                            Err(_) => return Err(ParseError::EINVAL),
+                            Err(_) => {
+                                return Err(ParseError::new(
+                                    ParseErrorType::EINVAL,
+                                    String::new(),
+                                    0,
+                                ))
+                            }
                         };
                         unit = "";
                     }
@@ -588,14 +666,13 @@ impl UnitParseUtil {
         let factor = match SEC_UNIT_TABLE.get(unit) {
             Some(val) => val,
             None => {
-                return Err(ParseError::EINVAL);
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         };
 
         //计算ns
         return Ok(integer * factor + (frac * factor) / (10u64.pow(frac.to_string().len() as u32)));
     }
-
     /// @brief 判断对应路径是否为目录
     ///
     /// @param path 路径

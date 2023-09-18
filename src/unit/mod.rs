@@ -1,9 +1,18 @@
 use crate::error::ParseError;
+use crate::error::ParseErrorType;
+use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
-//use drstd as std;
+
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+
 use std::any::Any;
 use std::boxed::Box;
+use std::default::Default;
 use std::rc::Rc;
+use std::result::Result;
+use std::result::Result::Err;
+use std::result::Result::Ok;
 use std::string::String;
 use std::vec::Vec;
 
@@ -32,13 +41,25 @@ pub trait Unit {
     /// 设置对应Unit属性
     ///
     /// @param segment  属性段类型
-    /// 
+    ///
     /// @param attr     属性名
-    /// 
+    ///
     /// @param val      属性值
     ///
     /// @return 设置成功则返回Ok(())，否则返回Err
     fn set_attr(&mut self, segment: Segment, attr: &str, val: &str) -> Result<(), ParseError>;
+
+    /// # 设置每个Unit都应该有的属性
+    ///
+    /// 设置BaseUnit
+    ///
+    /// ## param unit_base  设置值
+    fn set_unit_base(&mut self, unit_base: BaseUnit);
+
+    /// # 获取UnitType
+    ///
+    /// ## return UnitType
+    fn unit_type(&self) -> UnitType;
 }
 
 //Unit状态
@@ -70,10 +91,10 @@ pub enum UnitType {
 
 //记录unit文件基本信息，这个结构体里面的信息是所有Unit文件都可以有的属性
 pub struct BaseUnit {
-    pub unit_part: UnitPart,
-    pub install_part: InstallPart,
-    pub state: UnitState,
-    pub unit_type: UnitType,
+    unit_part: UnitPart,
+    install_part: InstallPart,
+    state: UnitState,
+    unit_type: UnitType,
 }
 
 impl Default for BaseUnit {
@@ -88,12 +109,53 @@ impl Default for BaseUnit {
 }
 
 impl BaseUnit {
+    pub fn set_state(&mut self, state: UnitState) {
+        self.state = state;
+    }
+
+    pub fn set_unit_type(&mut self, utype: UnitType) {
+        self.unit_type = utype;
+    }
+
+    pub fn set_unit_part_attr(
+        &mut self,
+        attr_type: &BaseUnitAttr,
+        val: &str,
+    ) -> Result<(), ParseError> {
+        return self.unit_part.set_attr(attr_type, val);
+    }
+
+    pub fn set_install_part_attr(
+        &mut self,
+        attr_type: &InstallUnitAttr,
+        val: &str,
+    ) -> Result<(), ParseError> {
+        return self.install_part.set_attr(attr_type, val);
+    }
+
     pub fn parse_and_set_attribute(&self) -> Result<(), ParseError> {
         return Ok(());
     }
 }
 
-#[derive(Default)]
+    pub fn unit_part(&self) -> &UnitPart {
+        &self.unit_part
+    }
+
+    pub fn install_part(&self) -> &InstallPart {
+        &self.install_part
+    }
+
+    pub fn state(&self) -> &UnitState {
+        &self.state
+    }
+
+    pub fn unit_type(&self) -> &UnitType {
+        &self.unit_type
+    }
+}
+
+#[derive(Default,Debug)]
 pub struct Url {
     pub url_string: String, // pub protocol: String,
                             // pub host: String,
@@ -105,16 +167,16 @@ pub struct Url {
 
 //对应Unit文件的Unit段
 pub struct UnitPart {
-    pub description: String,
-    pub documentation: Vec<Url>,
-    pub requires: Vec<Rc<dyn Unit>>,
-    pub wants: Vec<Rc<dyn Unit>>,
-    pub after: Vec<Rc<dyn Unit>>,
-    pub before: Vec<Rc<dyn Unit>>,
-    pub binds_to: Vec<Rc<dyn Unit>>,
-    pub part_of: Vec<Rc<dyn Unit>>,
-    pub on_failure: Vec<Rc<dyn Unit>>,
-    pub conflicts: Vec<Rc<dyn Unit>>,
+    description: String,
+    documentation: Vec<Url>,
+    requires: Vec<Rc<dyn Unit>>,
+    wants: Vec<Rc<dyn Unit>>,
+    after: Vec<Rc<dyn Unit>>,
+    before: Vec<Rc<dyn Unit>>,
+    binds_to: Vec<Rc<dyn Unit>>,
+    part_of: Vec<Rc<dyn Unit>>,
+    on_failure: Vec<Rc<dyn Unit>>,
+    conflicts: Vec<Rc<dyn Unit>>,
 }
 
 impl Default for UnitPart {
@@ -134,12 +196,131 @@ impl Default for UnitPart {
     }
 }
 
+impl UnitPart {
+    pub fn set_attr(&mut self, attr: &BaseUnitAttr, val: &str) -> Result<(), ParseError> {
+        match attr {
+            BaseUnitAttr::None => {
+                return Err(ParseError::new(ParseErrorType::ESyntaxError,String::new(),0));
+            }
+            BaseUnitAttr::Description => self.description = String::from(val),
+            BaseUnitAttr::Documentation => {
+                self.documentation.extend(UnitParseUtil::parse_url(val)?)
+            }
+            BaseUnitAttr::Requires => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入requires列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.requires
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::Wants => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.wants
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::After => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.after
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::Before => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.before
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::BindsTo => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.binds_to
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::PartOf => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.part_of
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::OnFailure => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    self.on_failure
+                        .push(UnitParseUtil::parse_unit_no_type(unit_path)?);
+                }
+            }
+            BaseUnitAttr::Conflicts => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    let unit = UnitParseUtil::parse_unit_no_type(unit_path)?;
+                    self.conflicts.push(unit);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn documentation(&self) -> &[Url] {
+        &self.documentation
+    }
+
+    pub fn requires(&self) -> &[Rc<dyn Unit>] {
+        &self.requires
+    }
+
+    pub fn wants(&self) -> &[Rc<dyn Unit>] {
+        &self.wants
+    }
+
+    pub fn after(&self) -> &[Rc<dyn Unit>] {
+        &self.after
+    }
+
+    pub fn before(&self) -> &[Rc<dyn Unit>] {
+        &self.before
+    }
+
+    pub fn binds_to(&self) -> &[Rc<dyn Unit>] {
+        &self.binds_to
+    }
+
+    pub fn part_of(&self) -> &[Rc<dyn Unit>] {
+        &self.part_of
+    }
+
+    pub fn on_failure(&self) -> &[Rc<dyn Unit>] {
+        &self.on_failure
+    }
+
+    pub fn conflicts(&self) -> &[Rc<dyn Unit>] {
+        &self.conflicts
+    }
+}
+
 //对应Unit文件的Install段
 pub struct InstallPart {
-    pub wanted_by: Vec<Rc<TargetUnit>>,
-    pub requires_by: Vec<Rc<TargetUnit>>,
-    pub also: Vec<Rc<dyn Unit>>,
-    pub alias: String,
+    wanted_by: Vec<Rc<TargetUnit>>,
+    requires_by: Vec<Rc<TargetUnit>>,
+    also: Vec<Rc<dyn Unit>>,
+    alias: String,
 }
 
 impl Default for InstallPart {
@@ -153,6 +334,59 @@ impl Default for InstallPart {
     }
 }
 
+impl InstallPart {
+    pub fn set_attr(&mut self, attr: &InstallUnitAttr, val: &str) -> Result<(), ParseError> {
+        match attr {
+            InstallUnitAttr::RequiredBy => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    let unit = UnitParseUtil::parse_unit::<TargetUnit>(unit_path)?;
+                    self.requires_by.push(unit);
+                }
+            }
+            InstallUnitAttr::Also => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    let unit = UnitParseUtil::parse_unit_no_type(unit_path)?;
+                    self.also.push(unit);
+                }
+            }
+            InstallUnitAttr::WantedBy => {
+                let units = val.split_whitespace().collect::<Vec<&str>>();
+                //TODO:目前先加入列表，可能会出现循环依赖问题，后续应解决循环依赖问题
+                for unit_path in units {
+                    let unit = UnitParseUtil::parse_unit::<TargetUnit>(unit_path)?;
+                    self.wanted_by.push(unit);
+                }
+            }
+            InstallUnitAttr::Alias => {
+                self.alias = String::from(val);
+            }
+            InstallUnitAttr::None => {
+                return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+            }
+        }
+        return Ok(());
+    }
+
+    pub fn wanted_by(&self) -> &[Rc<TargetUnit>] {
+        &self.wanted_by
+    }
+
+    pub fn requires_by(&self) -> &[Rc<TargetUnit>] {
+        &self.requires_by
+    }
+
+    pub fn also(&self) -> &[Rc<dyn Unit>] {
+        &self.also
+    }
+
+    pub fn alias(&self) -> &str {
+        &self.alias
+    }
+}
 //对应Unit文件的各种属性
 pub enum BaseUnitAttr {
     None,

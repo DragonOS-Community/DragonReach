@@ -1,4 +1,6 @@
-//use drstd as std;
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+
 use std::string::String;
 
 #[derive(Debug)]
