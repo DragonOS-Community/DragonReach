@@ -136,7 +136,6 @@ impl BaseUnit {
     pub fn parse_and_set_attribute(&self) -> Result<(), ParseError> {
         return Ok(());
     }
-}
 
     pub fn unit_part(&self) -> &UnitPart {
         &self.unit_part
