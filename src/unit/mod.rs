@@ -136,6 +136,7 @@ impl BaseUnit {
     pub fn parse_and_set_attribute(&self) -> Result<(), ParseError> {
         return Ok(());
     }
+}
 
     pub fn unit_part(&self) -> &UnitPart {
         &self.unit_part
@@ -386,7 +387,6 @@ impl InstallPart {
         &self.alias
     }
 }
-
 //对应Unit文件的各种属性
 pub enum BaseUnitAttr {
     None,

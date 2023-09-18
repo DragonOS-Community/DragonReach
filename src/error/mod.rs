@@ -25,7 +25,6 @@ pub enum ParseErrorType {
     /// 不是目录
     ENODIR,
 }
-
 /// 错误信息应该包括错误类型ParseErrorType,当前解析的文件名，当前解析的行号
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ParseError(ParseErrorType,String,usize);

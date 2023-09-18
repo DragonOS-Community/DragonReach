@@ -673,7 +673,6 @@ impl UnitParseUtil {
         //计算ns
         return Ok(integer * factor + (frac * factor) / (10u64.pow(frac.to_string().len() as u32)));
     }
-
     /// @brief 判断对应路径是否为目录
     ///
     /// @param path 路径
