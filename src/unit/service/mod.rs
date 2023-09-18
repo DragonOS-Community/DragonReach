@@ -1,16 +1,20 @@
 use super::{BaseUnit, Unit};
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorType};
 use crate::parse::parse_service::ServiceParser;
-use crate::parse::{AttrParse, Segment};
+use crate::parse::parse_util::UnitParseUtil;
+use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
 use crate::task::cmdtask::CmdTask;
-//use drstd as std;
+
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+
 use std::rc::Rc;
 use std::string::String;
 use std::vec::Vec;
 #[derive(Default)]
 pub struct ServiceUnit {
-    pub unit_base: BaseUnit,
-    pub service_part: ServicePart,
+    unit_base: BaseUnit,
+    service_part: ServicePart,
 }
 
 #[derive(Debug)]
@@ -62,28 +66,28 @@ impl Default for MountFlag {
 #[derive(Default, Debug)]
 pub struct ServicePart {
     //生命周期相关
-    pub service_type: ServiceType,
+    service_type: ServiceType,
     ///
-    pub remain_after_exit: bool,
-    pub exec_start: Vec<CmdTask>,
-    pub exec_start_pre: Vec<CmdTask>,
-    pub exec_start_pos: Vec<CmdTask>,
-    pub exec_reload: Vec<CmdTask>,
-    pub exec_stop: Vec<CmdTask>,
-    pub exec_stop_post: Vec<CmdTask>,
-    pub restart_sec: u64,
-    pub restart: RestartOption,
-    pub timeout_start_sec: u64,
-    pub timeout_stop_sec: u64,
+    remain_after_exit: bool,
+    exec_start: Vec<CmdTask>,
+    exec_start_pre: Vec<CmdTask>,
+    exec_start_pos: Vec<CmdTask>,
+    exec_reload: Vec<CmdTask>,
+    exec_stop: Vec<CmdTask>,
+    exec_stop_post: Vec<CmdTask>,
+    restart_sec: u64,
+    restart: RestartOption,
+    timeout_start_sec: u64,
+    timeout_stop_sec: u64,
     //上下文配置相关
-    pub environment: String,
-    pub environment_file: String,
-    pub nice: i8,
-    pub working_directory: String,
-    pub root_directory: String,
-    pub user: String,
-    pub group: String,
-    pub mount_flags: MountFlag,
+    environment: Vec<String>,
+    environment_file: String,
+    nice: i8,
+    working_directory: String,
+    root_directory: String,
+    user: String,
+    group: String,
+    mount_flags: MountFlag,
     //LimitCPU / LimitSTACK / LimitNOFILE / LimitNPROC 等,后续支持再添加
 }
 
@@ -101,9 +105,28 @@ impl Unit for ServiceUnit {
 
     fn set_attr(&mut self, segment: Segment, attr: &str, val: &str) -> Result<(), ParseError> {
         if segment != Segment::Service {
-            return Err(ParseError::EINVAL);
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(),0));
         }
-        return ServiceParser::parse_and_set_attribute(self, attr, val);
+        let attr_type = SERVICE_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(ParseErrorType::EINVAL, String::new(),0));
+        return self.service_part.set_attr(attr_type.unwrap(), val);
+    }
+
+    fn set_unit_base(&mut self, base: BaseUnit) {
+        self.unit_base = base;
+    }
+
+    fn unit_type(&self) -> super::UnitType {
+        return self.unit_base.unit_type;
+    }
+}
+
+impl ServiceUnit {
+    pub fn unit_base(&self) -> &BaseUnit {
+        return &self.unit_base;
+    }
+
+    pub fn service_part(&self) -> &ServicePart {
+        return &self.service_part;
     }
 }
 
@@ -150,4 +173,184 @@ pub enum ServiceUnitAttr {
     Group,
     //服务的 Mount Namespace 配置，会影响进程上下文中挂载点的信息
     MountFlags,
+}
+
+impl ServicePart {
+    pub fn set_attr(&mut self, attr: &ServiceUnitAttr, val: &str) -> Result<(), ParseError> {
+        match attr {
+            ServiceUnitAttr::Type => match val {
+                "simple" => self.service_type = ServiceType::Simple,
+                "forking" => self.service_type = ServiceType::Forking,
+                "oneshot" => self.service_type = ServiceType::OneShot,
+                "dbus" => self.service_type = ServiceType::Dbus,
+                "notify" => self.service_type = ServiceType::Notify,
+                "idle" => self.service_type = ServiceType::Idle,
+                _ => {
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(),0));
+                }
+            },
+            ServiceUnitAttr::RemainAfterExit => {
+                self.remain_after_exit = UnitParseUtil::parse_boolean(val)?
+            }
+            ServiceUnitAttr::ExecStart => {
+                self.exec_start.extend(UnitParseUtil::parse_cmd_task(val)?);
+            }
+            ServiceUnitAttr::ExecStartPre => {
+                self.exec_start_pre
+                    .extend(UnitParseUtil::parse_cmd_task(val)?);
+            }
+            ServiceUnitAttr::ExecStartPos => {
+                self.exec_start_pos
+                    .extend(UnitParseUtil::parse_cmd_task(val)?);
+            }
+            ServiceUnitAttr::ExecReload => {
+                self.exec_reload.extend(UnitParseUtil::parse_cmd_task(val)?);
+            }
+            ServiceUnitAttr::ExecStopPost => {
+                self.exec_stop_post
+                    .extend(UnitParseUtil::parse_cmd_task(val)?);
+            }
+            ServiceUnitAttr::ExecStop => {
+                self.exec_stop.extend(UnitParseUtil::parse_cmd_task(val)?);
+            }
+            ServiceUnitAttr::RestartSec => self.restart_sec = UnitParseUtil::parse_sec(val)?,
+            ServiceUnitAttr::Restart => match val {
+                "always" => self.restart = RestartOption::AlwaysRestart,
+                "on-success" => self.restart = RestartOption::OnSuccess,
+                "on-failure" => self.restart = RestartOption::OnFailure,
+                "on-abnormal" => self.restart = RestartOption::OnAbnormal,
+                "on-abort" => self.restart = RestartOption::OnAbort,
+                "on-watchdog" => self.restart = RestartOption::OnWatchdog,
+                _ => {
+                    return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+                }
+            },
+            ServiceUnitAttr::TimeoutStartSec => {
+                self.timeout_start_sec = UnitParseUtil::parse_sec(val)?
+            }
+            ServiceUnitAttr::TimeoutStopSec => {
+                self.timeout_stop_sec = UnitParseUtil::parse_sec(val)?
+            }
+            ServiceUnitAttr::Environment => {
+                self.environment.push(String::from(val));
+            }
+            ServiceUnitAttr::EnvironmentFile => {
+                if !UnitParseUtil::is_valid_file(val) {
+                    return Err(ParseError::new(ParseErrorType::EFILE,String::new(),0));
+                }
+                self.environment_file = String::from(val);
+            }
+            ServiceUnitAttr::Nice => {
+                self.nice = UnitParseUtil::parse_nice(val)?;
+            }
+            ServiceUnitAttr::WorkingDirectory => {
+                if !UnitParseUtil::is_dir(val) {
+                    return Err(ParseError::new(ParseErrorType::ENODIR,String::new(),0));
+                }
+                self.working_directory = String::from(val);
+            }
+            ServiceUnitAttr::User => {
+                //TODO: 检查系统是否存在这个用户
+                self.user = String::from(val);
+            }
+            ServiceUnitAttr::Group => {
+                //TODO: 检查系统是否存在该用户组
+                self.group = String::from(val);
+            }
+            ServiceUnitAttr::MountFlags => match val {
+                "shared" => self.mount_flags = MountFlag::Shared,
+                "slave" => self.mount_flags = MountFlag::Slave,
+                "private" => self.mount_flags = MountFlag::Private,
+                _ => {
+                    return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+                }
+            },
+            _ => {
+                return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+            }
+        }
+        return Ok(());
+    }
+
+    // 生命周期相关
+    pub fn service_type(&self) -> &ServiceType {
+        &self.service_type
+    }
+
+    pub fn remain_after_exit(&self) -> bool {
+        self.remain_after_exit
+    }
+
+    pub fn exec_start(&self) -> &Vec<CmdTask> {
+        &self.exec_start
+    }
+
+    pub fn exec_start_pre(&self) -> &Vec<CmdTask> {
+        &self.exec_start_pre
+    }
+
+    pub fn exec_start_pos(&self) -> &Vec<CmdTask> {
+        &self.exec_start_pos
+    }
+
+    pub fn exec_reload(&self) -> &Vec<CmdTask> {
+        &self.exec_reload
+    }
+
+    pub fn exec_stop(&self) -> &Vec<CmdTask> {
+        &self.exec_stop
+    }
+
+    pub fn exec_stop_post(&self) -> &Vec<CmdTask> {
+        &self.exec_stop_post
+    }
+
+    pub fn restart_sec(&self) -> u64 {
+        self.restart_sec
+    }
+
+    pub fn restart(&self) -> &RestartOption {
+        &self.restart
+    }
+
+    pub fn timeout_start_sec(&self) -> u64 {
+        self.timeout_start_sec
+    }
+
+    pub fn timeout_stop_sec(&self) -> u64 {
+        self.timeout_stop_sec
+    }
+
+    // 上下文配置相关
+    pub fn environment(&self) -> &[String] {
+        &self.environment
+    }
+
+    pub fn environment_file(&self) -> &str {
+        &self.environment_file
+    }
+
+    pub fn nice(&self) -> i8 {
+        self.nice
+    }
+
+    pub fn working_directory(&self) -> &str {
+        &self.working_directory
+    }
+
+    pub fn root_directory(&self) -> &str {
+        &self.root_directory
+    }
+
+    pub fn user(&self) -> &str {
+        &self.user
+    }
+
+    pub fn group(&self) -> &str {
+        &self.group
+    }
+
+    pub fn mount_flags(&self) -> &MountFlag {
+        &self.mount_flags
+    }
 }
