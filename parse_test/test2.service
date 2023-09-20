@@ -1,13 +1,11 @@
 [Unit]
-Description=My Service
+Description=My Service2
 Documentation=https://example.com/docs/my-service.html
-#After=/home/heyicong/DragonReach/parse_test/test1.service
+#After=/home/heyicong/DragonReach/parse_test/test.service
 
 [Service]
 Type=simple
-ExecStart=/bin/gdb -v
-ExecStartPos=/bin/gcc -v
-ExecStartPre=/bin/gcc -v
+ExecStart=/home/heyicong/DragonOs/bin/sysroot/bin/DragonReach --option1=value1 --option2=value2
 WorkingDirectory=/home/heyicong/
 User=myuser
 Group=mygroup
