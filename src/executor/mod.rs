@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
-    unit::Unit,
+    unit::Unit, manager::GLOBAL_UNIT_MANAGER,
 };
 
 use self::dep_graph::DepGraph;
@@ -23,9 +23,9 @@ impl Executor {
         let mut graph = DepGraph::construct_graph(unit);
 
         let sort_ret = graph.topological_sort()?;
-
+        let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
         for u in sort_ret {
-            if let Err(e) = u.run() {
+            if let Err(e) = manager.get_unit_with_id(&u).unwrap().run() {
                 return Err(e);
             }
         }

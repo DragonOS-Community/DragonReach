@@ -28,10 +28,10 @@ impl RunnnigUnit {
 
 pub struct UnitManager {
     // 通过unit_id映射unit
-    pub id_to_unit: HashMap<usize, Arc<dyn Unit>>,
+    pub id_to_unit: HashMap<usize,Arc<dyn Unit>>,
 
     // 通过path的hash值来映射Unit
-    pub path_to_unit: HashMap<u64,Arc<dyn Unit>>,
+    pub path_to_unit: HashMap<u64,usize>,
 
     pub running_table: Vec<RunnnigUnit>
 }
@@ -39,7 +39,7 @@ pub struct UnitManager {
 unsafe impl Sync for UnitManager {}
 
 impl UnitManager {
-    pub fn insert_into_path_table(&mut self,path: &str,unit: Arc<dyn Unit>){
+    pub fn insert_into_path_table(&mut self,path: &str,unit: usize){
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
         let hash = hasher.finish();
@@ -57,6 +57,17 @@ impl UnitManager {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
         let hash = hasher.finish();
-        self.path_to_unit.get(&hash)
+        let id = match self.path_to_unit.get(&hash) {
+            Some(id) => id,
+            None => {
+                return None;
+            }
+        };
+
+        self.id_to_unit.get(id)
+    }
+
+    pub fn get_unit_with_id(&self,id: &usize) -> Option<&Arc<dyn Unit>>{
+        self.id_to_unit.get(&id)
     }
 }

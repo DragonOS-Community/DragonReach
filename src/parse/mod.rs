@@ -201,13 +201,11 @@ impl UnitParser {
     pub fn parse<T: Unit + Default + Clone + 'static>(
         path: &str,
         unit_type: UnitType,
-    ) -> Result<Arc<T>, ParseError> {
+    ) -> Result<usize, ParseError> {
         let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
         if manager.contants_path(path) {
             let unit = manager.get_unit_with_path(path).unwrap();
-            let any = unit.as_any();
-            let ret: Arc<T> = Arc::new(any.downcast_ref::<T>().unwrap().clone());
-            return Ok(ret);
+            return Ok(unit.unit_id());
         }
         drop(manager);
 
@@ -328,14 +326,13 @@ impl UnitParser {
             i += 1;
         }
         unit.set_unit_base(unit_base);
-        unit.set_unit_id();
-        let dret: Arc<dyn Unit> = Arc::new(unit.clone());
+        let id = unit.set_unit_id();
+        let dret: Arc<dyn Unit> = Arc::new(unit);
 
         let mut manager = GLOBAL_UNIT_MANAGER.write().unwrap();
-        manager.id_to_unit.insert(dret.unit_id(), dret.clone());
-        manager.insert_into_path_table(path, dret);
+        manager.id_to_unit.insert(dret.unit_id(), dret);
+        manager.insert_into_path_table(path, id);
 
-        let ret = Arc::new(unit);
-        return Ok(ret);
+        return Ok(id);
     }
 }

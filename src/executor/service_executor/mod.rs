@@ -13,12 +13,14 @@ pub struct ServiceExecutor;
 
 impl ServiceExecutor {
     pub fn exec(service: &ServiceUnit) -> Result<(), RuntimeError> {
+        let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
         //处理conflict
         let conflicts = service.unit_base().unit_part().conflicts();
         for u in conflicts {
             // 如果有冲突项enable的时候，该unit不能启动
-            if *u.unit_base().state() == UnitState::Enabled {
-                eprintln!("{}: Service startup failed: conflict unit", u.unit_base().unit_part().description());
+            let unit = manager.get_unit_with_id(u).unwrap();
+            if *unit.unit_base().state() == UnitState::Enabled {
+                eprintln!("{}: Service startup failed: conflict unit", unit.unit_base().unit_part().description());
                 return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
             }
         }
