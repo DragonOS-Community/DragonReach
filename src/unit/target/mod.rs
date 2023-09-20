@@ -1,8 +1,9 @@
 use super::{BaseUnit, Unit};
-use crate::error::ParseError;
+use crate::error::parse_error::ParseError;
 use crate::parse::Segment;
 use crate::parse::parse_target::TargetParser;
 use core::ops::Deref;
+use std::sync::Arc;
 use cfg_if::cfg_if;
 
 cfg_if!{
@@ -16,17 +17,10 @@ cfg_if!{
     }
 }
 
-#[derive(Default)]
+#[derive(Debug,Clone,Default)]
 pub struct TargetUnit {
     unit_base: BaseUnit,
     //targets: Vec<Rc<dyn Unit>>,
-}
-
-impl Deref for TargetUnit {
-    type Target = TargetUnit;
-    fn deref(&self) -> &Self::Target {
-        &self
-    }
 }
 
 impl Unit for TargetUnit {
@@ -34,7 +28,7 @@ impl Unit for TargetUnit {
         self
     }
 
-    fn from_path(path: &str) -> Result<Rc<Self>, ParseError>
+    fn from_path(path: &str) -> Result<Arc<Self>, ParseError>
     where
         Self: Sized,
     {
@@ -52,4 +46,24 @@ impl Unit for TargetUnit {
     fn unit_type(&self) -> super::UnitType {
         return self.unit_base.unit_type;
     }
+
+    fn unit_base(&self) -> &BaseUnit {
+        return &self.unit_base;
+    }
+
+    fn unit_id(&self) -> usize {
+        return self.unit_base.unit_id;
+    }
+
+    fn run(&self) -> Result<(),crate::error::runtime_error::RuntimeError> {
+        Ok(())
+    }
+
+    fn mut_unit_base(&mut self) -> &mut BaseUnit {
+        return &mut self.unit_base;
+    }
 }
+
+unsafe impl Sync for TargetUnit {}
+
+unsafe impl Send for TargetUnit {}

@@ -1,7 +1,8 @@
-use crate::error::ParseErrorType;
+use crate::error::parse_error::ParseErrorType;
+use crate::manager::{self, GLOBAL_UNIT_MANAGER};
 use crate::unit::{BaseUnit, Unit};
 use crate::{
-    error::ParseError,
+    error::parse_error::ParseError,
     unit::{service::ServiceUnitAttr, BaseUnitAttr, InstallUnitAttr, UnitType},
 };
 
@@ -13,13 +14,14 @@ use lazy_static::lazy_static;
 use std::format;
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::rc::Rc;
 use std::string::String;
-use std::vec::Vec;
 use std::string::ToString;
+use std::sync::Arc;
+use std::vec::Vec;
 
-pub mod parse_target;
+pub mod graph;
 pub mod parse_service;
+pub mod parse_target;
 pub mod parse_util;
 
 //对应Unit段类型
@@ -158,25 +160,30 @@ impl UnitParser {
     /// @param unit_type 指定Unit类型
     ///
     /// @return 成功则返回对应BufReader，否则返回Err
-    fn get_unit_reader(path: &str, unit_type: UnitType) -> Result<io::BufReader<File>, ParseError> {
-        let suffix = match path.rfind('.') {
-            Some(idx) => &path[idx + 1..],
-            None => {
-                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
+    pub fn get_unit_reader(
+        path: &str,
+        unit_type: UnitType,
+    ) -> Result<io::BufReader<File>, ParseError> {
+        // 如果指定UnitType,则进行文件名检查，不然直接返回reader
+        if unit_type != UnitType::Unknown {
+            let suffix = match path.rfind('.') {
+                Some(idx) => &path[idx + 1..],
+                None => {
+                    return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
+                }
+            };
+            let u_type = UNIT_SUFFIX.get(suffix);
+            if u_type.is_none() {
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
-        };
-        let u_type = UNIT_SUFFIX.get(suffix);
-        if u_type.is_none() {
-            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
+            if *(u_type.unwrap()) != unit_type {
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
+            }
         }
-        if *(u_type.unwrap()) != unit_type {
-            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
-        }
-
         let file = match File::open(path) {
             Ok(file) => file,
             Err(_) => {
-                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
         };
         return Ok(io::BufReader::new(file));
@@ -190,8 +197,20 @@ impl UnitParser {
     ///
     /// @param unit_type 指定Unit类型
     ///
-    /// @return 解析成功则返回Ok(Rc<T>)，否则返回Err
-    pub fn parse<T: Unit + Default>(path: &str, unit_type: UnitType) -> Result<Rc<T>, ParseError> {
+    /// @return 解析成功则返回Ok(Arc<T>)，否则返回Err
+    pub fn parse<T: Unit + Default + Clone + 'static>(
+        path: &str,
+        unit_type: UnitType,
+    ) -> Result<Arc<T>, ParseError> {
+        let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
+        if manager.contants_path(path) {
+            let unit = manager.get_unit_with_path(path).unwrap();
+            let any = unit.as_any();
+            let ret: Arc<T> = Arc::new(any.downcast_ref::<T>().unwrap().clone());
+            return Ok(ret);
+        }
+        drop(manager);
+
         let mut unit: T = T::default();
         let mut unit_base = BaseUnit::default();
         //设置unit类型标记
@@ -232,7 +251,11 @@ impl UnitParser {
             }
             if segment == Segment::None {
                 //未找到段名则不能继续匹配
-                return Err(ParseError::new(ParseErrorType::ESyntaxError, path.to_string(),i + 1));
+                return Err(ParseError::new(
+                    ParseErrorType::ESyntaxError,
+                    path.to_string(),
+                    i + 1,
+                ));
             }
 
             //下面进行属性匹配
@@ -251,23 +274,28 @@ impl UnitParser {
                 break;
             }
             //=号分割后第一个元素为属性，后面的均为值，若一行出现两个等号则是语法错误
-            let (attr_str,val_str) = match line.find('=') {
-                Some(idx) => {
-                    (line[..idx].trim(), line[idx+1..].trim())
-                }
+            let (attr_str, val_str) = match line.find('=') {
+                Some(idx) => (line[..idx].trim(), line[idx + 1..].trim()),
                 None => {
-                    return Err(ParseError::new(ParseErrorType::ESyntaxError, path.to_string(),i + 1));
+                    return Err(ParseError::new(
+                        ParseErrorType::ESyntaxError,
+                        path.to_string(),
+                        i + 1,
+                    ));
                 }
             };
             //首先匹配所有unit文件都有的unit段和install段
             if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {
                 if segment != Segment::Unit {
-                    return Err(ParseError::new(ParseErrorType::EINVAL, path.to_string(),i + 1));
+                    return Err(ParseError::new(
+                        ParseErrorType::EINVAL,
+                        path.to_string(),
+                        i + 1,
+                    ));
                 }
-                if let Err(e) = unit_base.set_unit_part_attr(
-                    BASE_UNIT_ATTR_TABLE.get(attr_str).unwrap(),
-                    val_str,
-                ){
+                if let Err(e) = unit_base
+                    .set_unit_part_attr(BASE_UNIT_ATTR_TABLE.get(attr_str).unwrap(), val_str)
+                {
                     let mut e = e.clone();
                     e.set_file(path);
                     e.set_linenum(i + 1);
@@ -275,19 +303,22 @@ impl UnitParser {
                 }
             } else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {
                 if segment != Segment::Install {
-                    return Err(ParseError::new(ParseErrorType::EINVAL, path.to_string(),i + 1));
+                    return Err(ParseError::new(
+                        ParseErrorType::EINVAL,
+                        path.to_string(),
+                        i + 1,
+                    ));
                 }
-                if let Err(e) = unit_base.set_install_part_attr(
-                    INSTALL_UNIT_ATTR_TABLE.get(attr_str).unwrap(),
-                    val_str,
-                ){
+                if let Err(e) = unit_base
+                    .set_install_part_attr(INSTALL_UNIT_ATTR_TABLE.get(attr_str).unwrap(), val_str)
+                {
                     let mut e = e.clone();
                     e.set_file(path);
                     e.set_linenum(i + 1);
                     return Err(e);
                 }
             } else {
-                if let Err(e) = unit.set_attr(segment, attr_str, val_str){
+                if let Err(e) = unit.set_attr(segment, attr_str, val_str) {
                     let mut e = e.clone();
                     e.set_file(path);
                     e.set_linenum(i + 1);
@@ -297,6 +328,14 @@ impl UnitParser {
             i += 1;
         }
         unit.set_unit_base(unit_base);
-        return Ok(Rc::new(unit));
+        unit.set_unit_id();
+        let dret: Arc<dyn Unit> = Arc::new(unit.clone());
+
+        let mut manager = GLOBAL_UNIT_MANAGER.write().unwrap();
+        manager.id_to_unit.insert(dret.unit_id(), dret.clone());
+        manager.insert_into_path_table(path, dret);
+
+        let ret = Arc::new(unit);
+        return Ok(ret);
     }
 }

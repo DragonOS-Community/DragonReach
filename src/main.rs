@@ -1,5 +1,7 @@
-#![no_std]
-#![no_main]
+// #![no_std]
+// #![no_main]
+#![feature(slice_pattern)]
+
 use cfg_if::cfg_if;
 
 cfg_if!{
@@ -8,7 +10,7 @@ cfg_if!{
         use drstd as std;
         use std::print;
         use std::println;
-        use std::rc::Rc;
+        use std::rc::Arc;
         use unit::service::ServiceUnit;
     }
 }
@@ -20,6 +22,8 @@ mod error;
 mod parse;
 mod task;
 mod unit;
+mod manager;
+mod executor;
 
 use crate::unit::service;
 
@@ -57,7 +61,11 @@ fn main() {
 
 #[cfg(not(target_os = "dragonos"))]
 fn main() {
+    use std::{process::Command, sync::Arc};
+
     use unit::service::ServiceUnit;
+
+    use crate::{executor::Executor, error::ErrorFormat};
 
     let service = match ServiceUnit::from_path("/home/heyicong/DragonReach/parse_test/test.service"){
         Ok(service) => service,
@@ -67,19 +75,11 @@ fn main() {
         }
     };
 
-    
-    let service = service.as_ref();
-    println!("parse_result:");
-    println!("Description:{:?}", service.unit_base().unit_part().description());
-    println!("Documentation:{:?}",service.unit_base().unit_part().documentation());
-    println!("ServiceType:{:?}",service.service_part().service_type());
-    println!("ExecStrat:{:?}",service.service_part().exec_start());
-    println!("WorkingDirectory:{:?}",service.service_part().working_directory());
-    println!("Environment:{:?}",service.service_part().environment());
-    println!("Restart:{:?}",service.service_part().restart());
-    println!("RestartSec:{:?}",service.service_part().restart_sec());
-    println!("User:{:?}",service.service_part().user());
-    println!("Group:{:?}",service.service_part().group());
-    println!("TimeoutStartSec:{:?}",service.service_part().timeout_start_sec());
-    println!("TimeoutStopSec:{:?}",service.service_part().timeout_stop_sec());
+    let unit: Arc<dyn Unit> = service.clone();
+    println!("unit: {:?}",unit.unit_type());
+    println!("unit: {:?}",unit.unit_base().unit_part().description());
+    if let Err(e) = Executor::exec(&unit) {
+        println!("Error:{}",e.error_format());
+        return;
+    }
 }
