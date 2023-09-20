@@ -14,8 +14,7 @@ hashbrown = "0.11"
 cfg-if = { version = "1.0"}
 
 [target.'cfg(target_os = "dragonos")'.dependencies]
-#drstd = {git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", revision = "a4d693c682"}
-drstd = {path = "/home/heyicong/dragonos-rs-std"}
+drstd = {git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", revision = "a4d693c682"}
 lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
 
 [target.'cfg(not(target_os = "dragonos"))'.dependencies]
