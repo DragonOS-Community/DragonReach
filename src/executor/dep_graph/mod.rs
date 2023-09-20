@@ -1,25 +1,30 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 
+use core::slice::SlicePattern;
 use std::cmp::PartialEq;
-use std::vec::Vec;
 use std::sync::Arc;
+use std::vec::Vec;
 
-use crate::{error::runtime_error::{RuntimeError, RuntimeErrorType}, unit::Unit};
+use crate::{
+    error::runtime_error::{RuntimeError, RuntimeErrorType},
+    manager::GLOBAL_UNIT_MANAGER,
+    unit::Unit,
+};
 
-pub struct DepGraphNode<'a> {
-    value: &'a Arc<dyn Unit>,
+pub struct DepGraphNode {
+    value: usize,
     edges: Vec<usize>,
     incoming_edges: Vec<usize>,
 }
 
-pub struct DepGraph<'a> {
-    nodes: Vec<DepGraphNode<'a>>,
-    value: Vec<&'a Arc<dyn Unit>>,
+pub struct DepGraph {
+    nodes: Vec<DepGraphNode>,
+    value: Vec<usize>,
 }
 
 // 提供拓扑排序方法，在启动服务时确定先后顺序
-impl<'a> DepGraph<'a> {
+impl DepGraph {
     fn new() -> Self {
         return DepGraph {
             nodes: Vec::new(),
@@ -27,10 +32,14 @@ impl<'a> DepGraph<'a> {
         };
     }
 
-    pub fn add_node(&mut self, value: &'a Arc<dyn Unit>) -> usize {
+    pub fn add_node(&mut self, value: usize) -> usize {
         let index = self.nodes.len();
         //如果nodes中已经有了这个value则无需重复添加，直接返回nodes中的value对应的index
-        if let Some(idx) = self.value.iter().position(|x| x.unit_id() == value.unit_id()) {
+        if let Some(idx) = self
+            .value
+            .iter()
+            .position(|x| *x == value)
+        {
             return idx;
         }
         //如果value在nodes中不存在，则添加value
@@ -46,7 +55,7 @@ impl<'a> DepGraph<'a> {
         self.nodes[from].edges.push(to);
         self.nodes[to].incoming_edges.push(from);
     }
-    pub fn topological_sort(&mut self) -> Result<Vec<&Arc<dyn Unit>>, RuntimeError> {
+    pub fn topological_sort(&mut self) -> Result<Vec<usize>, RuntimeError> {
         let mut result = Vec::new();
         let mut visited = Vec::new();
         let mut stack = Vec::new();
@@ -78,23 +87,28 @@ impl<'a> DepGraph<'a> {
         return Ok(result);
     }
 
-    fn add_edges(&mut self,unit: &'a Arc<dyn Unit>,after: &'a [Arc<dyn Unit>]) {
+    fn add_edges(&mut self, unit: usize, after: &[usize]) {
         //因为service的依赖关系规模不会很大，故先使用递归实现
         //TODO:改递归
         for target in after {
             let s = self.add_node(unit);
-            let t = self.add_node(target);
+            let t = self.add_node(*target);
             self.add_edge(s, t);
-            self.add_edges(target, target.unit_base().unit_part().after());
+
+            let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
+            let after = manager.get_unit_with_id(target).unwrap().unit_base().unit_part().after();
+
+            self.add_edges(*target,after);
         }
     }
 
-    pub fn construct_graph(unit: &'a Arc<dyn Unit>) -> DepGraph<'a> {
-        let mut graph: DepGraph<'_> = DepGraph::new();
-        graph.add_node(unit);
+    pub fn construct_graph(unit: &Arc<dyn Unit>) -> DepGraph {
+        let mut graph: DepGraph = DepGraph::new();
+        graph.add_node(unit.unit_id());
         let after = unit.unit_base().unit_part().after();
+
         //递归添加边来构建图
-        graph.add_edges(unit, after);
+        graph.add_edges(unit.unit_id(), after);
         return graph;
     }
 }

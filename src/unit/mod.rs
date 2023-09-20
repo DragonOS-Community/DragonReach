@@ -86,8 +86,10 @@ pub trait Unit: Sync + Send + Debug {
     /// ## 设置unit_id
     ///
     /// ### return OK(())/Err
-    fn set_unit_id(&mut self) {
-        self.mut_unit_base().set_id(generate_unit_id());
+    fn set_unit_id(&mut self) -> usize {
+        let ret = generate_unit_id();
+        self.mut_unit_base().set_id(ret);
+        ret
     }
 }
 
@@ -220,14 +222,14 @@ pub struct Url {
 pub struct UnitPart {
     description: String,
     documentation: Vec<Url>,
-    requires: Vec<Arc<dyn Unit>>,
-    wants: Vec<Arc<dyn Unit>>,
-    after: Vec<Arc<dyn Unit>>,
-    before: Vec<Arc<dyn Unit>>,
-    binds_to: Vec<Arc<dyn Unit>>,
-    part_of: Vec<Arc<dyn Unit>>,
-    on_failure: Vec<Arc<dyn Unit>>,
-    conflicts: Vec<Arc<dyn Unit>>,
+    requires: Vec<usize>,
+    wants: Vec<usize>,
+    after: Vec<usize>,
+    before: Vec<usize>,
+    binds_to: Vec<usize>,
+    part_of: Vec<usize>,
+    on_failure: Vec<usize>,
+    conflicts: Vec<usize>,
 }
 
 impl Default for UnitPart {
@@ -337,35 +339,35 @@ impl UnitPart {
         &self.documentation
     }
 
-    pub fn requires(&self) -> &[Arc<dyn Unit>] {
+    pub fn requires(&self) -> &[usize] {
         &self.requires
     }
 
-    pub fn wants(&self) -> &[Arc<dyn Unit>] {
+    pub fn wants(&self) -> &[usize] {
         &self.wants
     }
 
-    pub fn after(&self) -> &[Arc<dyn Unit>] {
+    pub fn after(&self) -> &[usize] {
         &self.after
     }
 
-    pub fn before(&self) -> &[Arc<dyn Unit>] {
+    pub fn before(&self) -> &[usize] {
         &self.before
     }
 
-    pub fn binds_to(&self) -> &[Arc<dyn Unit>] {
+    pub fn binds_to(&self) -> &[usize] {
         &self.binds_to
     }
 
-    pub fn part_of(&self) -> &[Arc<dyn Unit>] {
+    pub fn part_of(&self) -> &[usize] {
         &self.part_of
     }
 
-    pub fn on_failure(&self) -> &[Arc<dyn Unit>] {
+    pub fn on_failure(&self) -> &[usize] {
         &self.on_failure
     }
 
-    pub fn conflicts(&self) -> &[Arc<dyn Unit>] {
+    pub fn conflicts(&self) -> &[usize] {
         &self.conflicts
     }
 }
@@ -375,7 +377,7 @@ impl UnitPart {
 pub struct InstallPart {
     wanted_by: Vec<Arc<TargetUnit>>,
     requires_by: Vec<Arc<TargetUnit>>,
-    also: Vec<Arc<dyn Unit>>,
+    also: Vec<usize>,
     alias: String,
 }
 
@@ -435,7 +437,7 @@ impl InstallPart {
         &self.requires_by
     }
 
-    pub fn also(&self) -> &[Arc<dyn Unit>] {
+    pub fn also(&self) -> &[usize] {
         &self.also
     }
 

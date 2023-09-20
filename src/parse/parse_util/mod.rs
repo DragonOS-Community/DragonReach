@@ -440,7 +440,7 @@ impl UnitParseUtil {
     /// @param path 需解析的文件
     ///
     /// @return 解析成功则返回Ok(Arc<dyn Unit>)，否则返回Err
-    pub fn parse_unit_no_type(path: &str) -> Result<Arc<dyn Unit>, ParseError> {
+    pub fn parse_unit_no_type(path: &str) -> Result<usize, ParseError> {
         let idx = match path.rfind('.') {
             Some(val) => val,
             None => {
@@ -456,7 +456,7 @@ impl UnitParseUtil {
         let suffix = &path[idx + 1..];
 
         //通过文件后缀分发给不同类型的Unit解析器解析
-        let unit: Arc<dyn Unit> = match suffix {
+        let unit = match suffix {
             //TODO: 目前为递归，后续应考虑从DragonReach管理的Unit表中寻找是否有该Unit，并且通过记录消除递归
             "service" => {
                 UnitParser::parse::<ServiceUnit>(path, UnitType::Service)?
