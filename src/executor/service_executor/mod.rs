@@ -208,6 +208,14 @@ impl ServiceExecutor {
         Ok(())
     }
 
+    fn exec_reload(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
+        let cmds = service.service_part().exec_reload();
+        for cmd in cmds {
+            cmd.exec()?;
+        }
+        Ok(())
+    }
+
     //服务退出执行的逻辑(包括自然退出及显式退出)
     pub fn after_exit(service: &mut ServiceUnit, exit_status: ExitStatus) {
         //TODO: 需要考虑是否需要在此处执行退出后代码，还是只需要显式退出时才执行
@@ -215,6 +223,7 @@ impl ServiceExecutor {
 
         //判断是否需要restart，需要则再次启动服务
         if service.service_part().restart().is_restart(&exit_status) {
+            let _ = Self::exec_reload(service);
             let _ = service.run();
             return;
         }

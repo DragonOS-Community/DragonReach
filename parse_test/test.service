@@ -6,15 +6,16 @@ Documentation=https://example.com/docs/my-service.html
 [Service]
 Type=simple
 ExecStart=/bin/gdb
-ExecStartPos=/bin/gcc -v
-ExecStartPre=/bin/ls
-ExecStopPost=/bin/ls
+ExecStartPos=/bin/echo start_pos
+ExecStartPre=/bin/echo start_pre
+ExecStopPost=/bin/echo stop_pos
+ExecReload=/bin/echo reload
 WorkingDirectory=/home/heyicong/
 User=myuser
 Group=mygroup
 Environment=VAR1=value1
 Environment=VAR2=value2
-Restart=on-failure
+Restart=on-success
 RestartSec=5s
 TimeoutStartSec=10s
 TimeoutStopSec=10s
