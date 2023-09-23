@@ -1,23 +1,18 @@
 use super::{BaseUnit, Unit};
 use crate::error::parse_error::ParseError;
-use crate::parse::Segment;
 use crate::parse::parse_target::TargetParser;
-use core::ops::Deref;
-use std::sync::Arc;
+use crate::parse::Segment;
 use cfg_if::cfg_if;
+use core::ops::Deref;
+use core::result::Result::{self, Err, Ok};
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+use std::marker::{Send, Sized, Sync};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::vec::Vec;
 
-cfg_if!{
-    if #[cfg(target_os = "dragonos")]{
-        use drstd as std;
-        use std::rc::Rc;
-        use std::vec::Vec;
-    }else{
-        use std::rc::Rc;
-        use std::vec::Vec;
-    }
-}
-
-#[derive(Debug,Clone,Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TargetUnit {
     unit_base: BaseUnit,
     //targets: Vec<Rc<dyn Unit>>,
@@ -28,7 +23,7 @@ impl Unit for TargetUnit {
         self
     }
 
-    fn from_path(path: &str) -> Result<Arc<Self>, ParseError>
+    fn from_path(path: &str) -> Result<usize, ParseError>
     where
         Self: Sized,
     {
@@ -55,7 +50,7 @@ impl Unit for TargetUnit {
         return self.unit_base.unit_id;
     }
 
-    fn run(&self) -> Result<(),crate::error::runtime_error::RuntimeError> {
+    fn run(&mut self) -> Result<(), crate::error::runtime_error::RuntimeError> {
         Ok(())
     }
 

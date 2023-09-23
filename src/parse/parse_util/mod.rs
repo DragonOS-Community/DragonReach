@@ -2,7 +2,7 @@ use crate::{
     contants::{AF_INET, AF_INET6, IPV4_MIN_MTU, IPV6_MIN_MTU, PRIO_MAX, PRIO_MIN},
     error::{parse_error::ParseError, parse_error::ParseErrorType},
     task::cmdtask::CmdTask,
-    unit::{Unit, Url, service::ServiceUnit, UnitType, target::TargetUnit},
+    unit::{service::ServiceUnit, target::TargetUnit, Unit, UnitType, Url},
     FileDescriptor,
 };
 
@@ -10,11 +10,13 @@ use crate::{
 use drstd as std;
 
 use std::{
-    format, fs, path::Path, print, println, string::String, string::ToString, vec, vec::Vec, os::unix::prelude::PermissionsExt, sync::Arc, any::Any,
+    any::Any, format, fs, os::unix::prelude::PermissionsExt, path::Path, print, println,
+    string::String, string::ToString, sync::Arc, vec, vec::Vec,
 };
 
 use super::{
-    parse_service::ServiceParser, parse_target::TargetParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE, UnitParser,
+    parse_service::ServiceParser, parse_target::TargetParser, UnitParser, BASE_IEC, BASE_SI,
+    SEC_UNIT_TABLE,
 };
 
 #[derive(PartialEq)]
@@ -429,7 +431,7 @@ impl UnitParseUtil {
     /// @param path 需解析的文件
     ///
     /// @return 解析成功则返回Ok(Arc<dyn Unit>)，否则返回Err
-    pub fn parse_unit<T: Unit>(path: &str) -> Result<Arc<T>, ParseError> {
+    pub fn parse_unit<T: Unit>(path: &str) -> Result<usize, ParseError> {
         return T::from_path(path);
     }
 
@@ -458,18 +460,23 @@ impl UnitParseUtil {
         //通过文件后缀分发给不同类型的Unit解析器解析
         let unit = match suffix {
             //TODO: 目前为递归，后续应考虑从DragonReach管理的Unit表中寻找是否有该Unit，并且通过记录消除递归
-            "service" => {
-                UnitParser::parse::<ServiceUnit>(path, UnitType::Service)?
-            },
-            "target" => {
-                UnitParser::parse::<TargetUnit>(path, UnitType::Target)?
-            },
+            "service" => UnitParser::parse::<ServiceUnit>(path, UnitType::Service)?,
+            "target" => UnitParser::parse::<TargetUnit>(path, UnitType::Target)?,
             _ => {
                 return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
         };
 
         return Ok(unit);
+    }
+
+    pub fn parse_env(s: &str) -> Result<(String, String), ParseError> {
+        let s = s.trim().split('=').collect::<Vec<&str>>();
+        if s.len() != 2 {
+            return Err(ParseError::new(ParseErrorType::EINVAL, "".to_string(), 0));
+        }
+
+        return Ok((s[0].to_string(), s[1].to_string()));
     }
 
     /// @brief 将对应的str解析为对应CmdTask
@@ -527,13 +534,13 @@ impl UnitParseUtil {
     /// @brief 判断是否为绝对路径,以及指向是否为可执行文件或者sh脚本
     ///
     /// 目前该方法仅判断是否为绝对路径
-    /// 
+    ///
     /// @param path 路径
     ///
     /// @return 解析成功则返回true，否则返回false
     pub fn is_valid_exec_path(path: &str) -> bool {
         let path = Path::new(path);
-        return path.is_absolute()
+        return path.is_absolute();
 
         //TODO: 后续应判断该文件是否为合法文件
         //let path = Path::new(path);
@@ -541,10 +548,10 @@ impl UnitParseUtil {
     }
 
     pub fn is_valid_file(path: &str) -> bool {
-        if !path.starts_with("/"){
+        if !path.starts_with("/") {
             return false;
         }
-        
+
         let path = Path::new(path);
         if let Ok(matadata) = fs::metadata(path) {
             return matadata.is_file();
@@ -556,7 +563,7 @@ impl UnitParseUtil {
     fn is_executable_file(path: &Path) -> bool {
         if let Ok(metadata) = fs::metadata(path) {
             // 检查文件类型是否是普通文件并且具有可执行权限
-            if metadata.is_file(){
+            if metadata.is_file() {
                 let permissions = metadata.permissions().mode();
                 return permissions & 0o111 != 0;
             }
@@ -686,5 +693,18 @@ impl UnitParseUtil {
             return false;
         }
         return false;
+    }
+
+    pub fn parse_type(path: &str) -> UnitType {
+        if let Some(index) = path.rfind('.') {
+            let result = &path[index + 1..];
+            match result {
+                "service" => return UnitType::Service,
+                "target" => return UnitType::Target,
+                //TODO: 添加文件类型
+                _ => return UnitType::Unknown,
+            }
+        }
+        UnitType::Unknown
     }
 }

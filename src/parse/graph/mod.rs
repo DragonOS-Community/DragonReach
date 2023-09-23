@@ -1,12 +1,15 @@
-use core::slice::SlicePattern;
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-};
-
 use crate::{
     error::parse_error::{ParseError, ParseErrorType},
     unit::UnitType,
+};
+use core::slice::SlicePattern;
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+use std::string::{String, ToString};
+use std::vec::Vec;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
 };
 
 use super::{parse_util::UnitParseUtil, UnitParser};
@@ -132,8 +135,7 @@ impl Graph {
     pub fn parse_after(path: &String) -> Vec<String> {
         let mut ret = Vec::new();
 
-        let file = File::open(path).expect("Failed to open file");
-        let reader = BufReader::new(file);
+        let reader = UnitParser::get_reader(path, UnitType::Unknown).unwrap();
 
         let mut lines_with_after = Vec::new();
 
@@ -171,14 +173,13 @@ impl Graph {
         dependencies: &mut Vec<String>,
         total_after_count: &mut u32,
     ) -> Result<(), ParseError> {
-        let reader = UnitParser::get_unit_reader(file_path, UnitType::Unknown)?;
+        let reader = UnitParser::get_reader(file_path, UnitType::Unknown)?;
 
         let mut current_after_count = 0;
 
         for line_result in reader.lines() {
             if let Ok(line) = line_result {
                 if line.starts_with("After=") {
-
                     let dependencies_str = &line[6..];
                     let dependency_list: Vec<&str> = dependencies_str.split_whitespace().collect();
 

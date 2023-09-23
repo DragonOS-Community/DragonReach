@@ -1,4 +1,8 @@
 use super::ErrorFormat;
+#[cfg(target_os = "dragonos")]
+use drstd as std;
+use std::format;
+use std::string::String;
 
 #[derive(Debug)]
 pub enum RuntimeErrorType {
@@ -51,6 +55,6 @@ impl RuntimeError {
 
 impl ErrorFormat for RuntimeError {
     fn error_format(&self) -> String {
-        format!("Runtime Error!,Error Type: {:?}",self.0)
+        format!("Runtime Error!,Error Type: {:?}", self.0)
     }
 }

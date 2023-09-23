@@ -2,6 +2,7 @@ use crate::error::parse_error::ParseError;
 use crate::error::parse_error::ParseErrorType;
 use crate::error::runtime_error::RuntimeError;
 use crate::error::runtime_error::RuntimeErrorType;
+use crate::executor::ExitStatus;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
 
@@ -12,6 +13,8 @@ use hashbrown::HashMap;
 use std::any::Any;
 use std::default::Default;
 use std::fmt::Debug;
+use std::marker::{Send, Sized, Sync};
+use std::option::Option::Some;
 use std::result::Result;
 use std::result::Result::Err;
 use std::result::Result::Ok;
@@ -40,8 +43,8 @@ pub trait Unit: Sync + Send + Debug {
     ///
     /// @param path 需解析的文件
     ///
-    /// @return 解析成功则返回对应Unit的Arc指针，否则返回Err
-    fn from_path(path: &str) -> Result<Arc<Self>, ParseError>
+    /// @return 解析成功则返回对应Unit的id，否则返回Err
+    fn from_path(path: &str) -> Result<usize, ParseError>
     where
         Self: Sized;
 
@@ -81,7 +84,7 @@ pub trait Unit: Sync + Send + Debug {
     /// ## Unit的工作逻辑
     ///
     /// ### return OK(())/Err
-    fn run(&self) -> Result<(), RuntimeError>;
+    fn run(&mut self) -> Result<(), RuntimeError>;
 
     /// ## 设置unit_id
     ///
@@ -91,25 +94,17 @@ pub trait Unit: Sync + Send + Debug {
         self.mut_unit_base().set_id(ret);
         ret
     }
-}
 
-pub struct Downcast;
-impl Downcast {
-    fn downcast<T: Unit + Clone + 'static>(unit: Arc<dyn Unit>) -> Result<Arc<T>,RuntimeError> {
-        let any = unit.as_any();
-        let unit = match any.downcast_ref::<T>(){
-            Some(v) => v,
-            None => {
-                return Err(RuntimeError::new(RuntimeErrorType::DatabaseError));
-            }
-        };
-        
-        return Ok(Arc::new(unit.clone()));
+    /// ## Unit退出后逻辑
+    /// 
+    /// 一般只有可运行的Unit(如Service)需要重写此函数
+    fn after_exit(&mut self,exit_status: ExitStatus){
+
     }
 }
 
 //Unit状态
-#[derive(Clone, Copy, Debug,PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UnitState {
     Enabled,
     Disabled,
@@ -375,8 +370,8 @@ impl UnitPart {
 //对应Unit文件的Install段
 #[derive(Debug, Clone)]
 pub struct InstallPart {
-    wanted_by: Vec<Arc<TargetUnit>>,
-    requires_by: Vec<Arc<TargetUnit>>,
+    wanted_by: Vec<usize>,
+    requires_by: Vec<usize>,
     also: Vec<usize>,
     alias: String,
 }
@@ -429,11 +424,11 @@ impl InstallPart {
         return Ok(());
     }
 
-    pub fn wanted_by(&self) -> &[Arc<TargetUnit>] {
+    pub fn wanted_by(&self) -> &[usize] {
         &self.wanted_by
     }
 
-    pub fn requires_by(&self) -> &[Arc<TargetUnit>] {
+    pub fn requires_by(&self) -> &[usize] {
         &self.requires_by
     }
 

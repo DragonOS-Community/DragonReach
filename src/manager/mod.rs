@@ -1,73 +1,78 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
-use std::{
-    sync::{Arc, RwLock}, collections::hash_map::DefaultHasher, process::Child,
-};
-use std::hash::{Hash,Hasher};
+use std::fs::File;
+use std::{eprint, eprintln, os::fd::AsFd, print, println, process::Child, vec::Vec};
 
-use crate::unit::Unit;
-use hashbrown::HashMap;
-use lazy_static::lazy_static;
+pub mod unit_manager;
+use std::io::Read;
+use std::os::unix::io::{AsRawFd, FromRawFd};
+pub use unit_manager::*;
 
-lazy_static! {
-    pub static ref GLOBAL_UNIT_MANAGER: RwLock<UnitManager> = {
-        RwLock::new(UnitManager {
-            id_to_unit: HashMap::new(),
-            path_to_unit: HashMap::new(),
-            running_table: Vec::new(),
-        })
-    };
-}
+use crate::executor::ExitStatus;
 
-pub struct RunnnigUnit(Child,Arc<dyn Unit>);
-impl RunnnigUnit {
-    pub fn new(p:Child,unit: Arc<dyn Unit>) -> Self {
-        RunnnigUnit(p,unit)
-    }
-}
+pub struct Manager;
 
-pub struct UnitManager {
-    // 通过unit_id映射unit
-    pub id_to_unit: HashMap<usize,Arc<dyn Unit>>,
+impl Manager {
+    /// ## 检查处于运行状态的unit状态
+    pub fn check_running_status() {
+        let mut running_manager = RUNNING_TABLE.write().unwrap();
+        let mut dead_unit: Vec<usize> = Vec::new();
+        let mut exited_unit: Vec<(usize, ExitStatus)> = Vec::new();
+        for unit in running_manager.into_iter() {
+            let proc = unit.child();
+            match proc.try_wait() {
+                //进程正常退出
+                Ok(Some(status)) => {
+                    //TODO:交付给相应类型的Unit类型去执行退出后的逻辑
+                    println!("Service exited success");
 
-    // 通过path的hash值来映射Unit
-    pub path_to_unit: HashMap<u64,usize>,
+                    exited_unit.push((
+                        *unit.id(),
+                        ExitStatus::from_exit_code(status.code().unwrap()),
+                    ));
 
-    pub running_table: Vec<RunnnigUnit>
-}
+                    //退出后从表中去除该任务
+                    dead_unit.push(*unit.id());
+                }
+                //进程错误退出(或启动失败)
+                Err(e) => {
+                    eprintln!("unit error: {}", e);
 
-unsafe impl Sync for UnitManager {}
+                    //test
+                    exited_unit.push((
+                        *unit.id(),
+                        ExitStatus::from_exit_code(!0),
+                    ));
 
-impl UnitManager {
-    pub fn insert_into_path_table(&mut self,path: &str,unit: usize){
-        let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
-        let hash = hasher.finish();
-        self.path_to_unit.insert(hash, unit);
-    }
-
-    pub fn contants_path(&self,path: &str) -> bool{
-        let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
-        let hash = hasher.finish();
-        self.path_to_unit.contains_key(&hash)
-    }
-
-    pub fn get_unit_with_path(&self,path: &str) -> Option<&Arc<dyn Unit>> {
-        let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
-        let hash = hasher.finish();
-        let id = match self.path_to_unit.get(&hash) {
-            Some(id) => id,
-            None => {
-                return None;
+                    //从表中去除该任务
+                    dead_unit.push(*unit.id());
+                }
+                //进程处于正常运行状态
+                _ => {}
             }
-        };
+        }
+        //释放锁，以便后续删除操作能拿到锁
+        drop(running_manager);
 
-        self.id_to_unit.get(id)
-    }
+        //从表中清除数据
+        for id in dead_unit {
+            UnitManager::remove_running(id);
+        }
 
-    pub fn get_unit_with_id(&self,id: &usize) -> Option<&Arc<dyn Unit>>{
-        self.id_to_unit.get(&id)
+        if UnitManager::running_count() == 0 {
+            let unit = UnitManager::pop_a_idle_service();
+            match unit {
+                Some(unit) => {
+                    let _ = unit.lock().unwrap().run();
+                }
+                None => {}
+            }
+        }
+
+        // 交付处理子进程退出逻辑
+        for tmp in exited_unit {
+            let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();
+            unit.lock().unwrap().after_exit(tmp.1);
+        }
     }
 }

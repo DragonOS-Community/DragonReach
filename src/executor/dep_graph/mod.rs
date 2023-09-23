@@ -2,13 +2,13 @@
 use drstd as std;
 
 use core::slice::SlicePattern;
-use std::cmp::PartialEq;
 use std::sync::Arc;
 use std::vec::Vec;
+use std::{cmp::PartialEq, sync::Mutex};
 
+use crate::manager::{self, UnitManager};
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
-    manager::GLOBAL_UNIT_MANAGER,
     unit::Unit,
 };
 
@@ -35,11 +35,7 @@ impl DepGraph {
     pub fn add_node(&mut self, value: usize) -> usize {
         let index = self.nodes.len();
         //如果nodes中已经有了这个value则无需重复添加，直接返回nodes中的value对应的index
-        if let Some(idx) = self
-            .value
-            .iter()
-            .position(|x| *x == value)
-        {
+        if let Some(idx) = self.value.iter().position(|x| *x == value) {
             return idx;
         }
         //如果value在nodes中不存在，则添加value
@@ -95,20 +91,23 @@ impl DepGraph {
             let t = self.add_node(*target);
             self.add_edge(s, t);
 
-            let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
-            let after = manager.get_unit_with_id(target).unwrap().unit_base().unit_part().after();
+            let arc_unit = UnitManager::get_unit_with_id(target).unwrap();
+            let unit = arc_unit.lock().unwrap();
+            let after = unit.unit_base().unit_part().after();
 
-            self.add_edges(*target,after);
+            self.add_edges(*target, after);
         }
     }
 
-    pub fn construct_graph(unit: &Arc<dyn Unit>) -> DepGraph {
+    pub fn construct_graph(unit: &Arc<Mutex<dyn Unit>>) -> DepGraph {
         let mut graph: DepGraph = DepGraph::new();
-        graph.add_node(unit.unit_id());
-        let after = unit.unit_base().unit_part().after();
 
+        let unit = unit.lock().unwrap();
+        let uid = unit.unit_id();
+        graph.add_node(uid);
+        let after = (&unit).unit_base().unit_part().after();
         //递归添加边来构建图
-        graph.add_edges(unit.unit_id(), after);
+        graph.add_edges(uid, after);
         return graph;
     }
 }

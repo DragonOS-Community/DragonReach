@@ -31,24 +31,27 @@ pub enum ParseErrorType {
 }
 /// 错误信息应该包括错误类型ParseErrorType,当前解析的文件名，当前解析的行号
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ParseError(ParseErrorType,String,usize);
+pub struct ParseError(ParseErrorType, String, usize);
 
 impl ParseError {
-    pub fn new(error_type: ParseErrorType,file_name: String,line_number: usize) -> ParseError {
-        ParseError(error_type,file_name,line_number)
+    pub fn new(error_type: ParseErrorType, file_name: String, line_number: usize) -> ParseError {
+        ParseError(error_type, file_name, line_number)
     }
 
-    pub fn set_file(&mut self,path: &str) {
+    pub fn set_file(&mut self, path: &str) {
         self.1 = path.to_string();
     }
 
-    pub fn set_linenum(&mut self,linenum: usize) {
+    pub fn set_linenum(&mut self, linenum: usize) {
         self.2 = linenum;
     }
 }
 
 impl ErrorFormat for ParseError {
     fn error_format(&self) -> String {
-        format!("Parse Error!,Error Type: {:?}, File: {}, Line: {}",self.0,self.1,self.2)
+        format!(
+            "Parse Error!,Error Type: {:?}, File: {}, Line: {}",
+            self.0, self.1, self.2
+        )
     }
 }
