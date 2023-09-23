@@ -1,0 +1,8 @@
+[Unit]
+Description=Shell
+
+[Service]
+Type=simple
+ExecStart=/bin/shell.el
+Restart=always
+RestartSec=5000

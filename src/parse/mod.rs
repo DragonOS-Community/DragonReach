@@ -1,6 +1,7 @@
 use crate::error::parse_error::ParseErrorType;
-use crate::manager::{self, GLOBAL_UNIT_MANAGER};
+use crate::manager::{self, UnitManager};
 use crate::unit::{BaseUnit, Unit};
+use crate::DRAGON_REACH_UNIT_DIR;
 use crate::{
     error::parse_error::ParseError,
     unit::{service::ServiceUnitAttr, BaseUnitAttr, InstallUnitAttr, UnitType},
@@ -16,8 +17,12 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::string::String;
 use std::string::ToString;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::vec::Vec;
+
+use self::parse_service::ServiceParser;
+use self::parse_target::TargetParser;
+use self::parse_util::UnitParseUtil;
 
 pub mod graph;
 pub mod parse_service;
@@ -153,17 +158,20 @@ pub struct UnitParser;
 impl UnitParser {
     /// @brief 从path获取到BufReader,此方法将会检验文件类型
     ///
-    /// 从path获取到BufReader,此方法将会检验文件类型
+    /// 如果指定UnitType,则进行文件名检查
     ///
     /// @param path 需解析的文件路径
     ///
     /// @param unit_type 指定Unit类型
     ///
     /// @return 成功则返回对应BufReader，否则返回Err
-    pub fn get_unit_reader(
-        path: &str,
-        unit_type: UnitType,
-    ) -> Result<io::BufReader<File>, ParseError> {
+    pub fn get_reader(path: &str, unit_type: UnitType) -> Result<io::BufReader<File>, ParseError> {
+        //判断是否为路径，若不为路径则到定向到默认unit文件夹
+        let mut realpath = path.to_string();
+        if !path.contains('/') {
+            realpath = format!("{}{}", DRAGON_REACH_UNIT_DIR, &path).to_string();
+        }
+        let path = realpath.as_str();
         // 如果指定UnitType,则进行文件名检查，不然直接返回reader
         if unit_type != UnitType::Unknown {
             let suffix = match path.rfind('.') {
@@ -189,6 +197,15 @@ impl UnitParser {
         return Ok(io::BufReader::new(file));
     }
 
+    pub fn from_path(path: &str) -> Result<usize, ParseError> {
+        let unit_type = UnitParseUtil::parse_type(&path);
+        match unit_type {
+            UnitType::Service => ServiceParser::parse(path),
+            UnitType::Target => TargetParser::parse(path),
+            _ => Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0)),
+        }
+    }
+
     /// @brief 将path路径的文件解析为unit_type类型的Unit
     ///
     /// 该方法解析每个Unit共有的段(Unit,Install),其余独有的段属性将会交付T类型的Unit去解析
@@ -202,19 +219,19 @@ impl UnitParser {
         path: &str,
         unit_type: UnitType,
     ) -> Result<usize, ParseError> {
-        let manager = GLOBAL_UNIT_MANAGER.read().unwrap();
-        if manager.contants_path(path) {
-            let unit = manager.get_unit_with_path(path).unwrap();
+        // 如果该文件已解析过，则直接返回id
+        if UnitManager::contains_path(path) {
+            let unit = UnitManager::get_unit_with_path(path).unwrap();
+            let unit = unit.lock().unwrap();
             return Ok(unit.unit_id());
         }
-        drop(manager);
 
         let mut unit: T = T::default();
         let mut unit_base = BaseUnit::default();
         //设置unit类型标记
         unit_base.set_unit_type(unit_type);
 
-        let reader = UnitParser::get_unit_reader(path, unit_type)?;
+        let reader = UnitParser::get_reader(path, unit_type)?;
 
         //用于记录当前段的类型
         let mut segment = Segment::None;
@@ -327,11 +344,9 @@ impl UnitParser {
         }
         unit.set_unit_base(unit_base);
         let id = unit.set_unit_id();
-        let dret: Arc<dyn Unit> = Arc::new(unit);
-
-        let mut manager = GLOBAL_UNIT_MANAGER.write().unwrap();
-        manager.id_to_unit.insert(dret.unit_id(), dret);
-        manager.insert_into_path_table(path, id);
+        let dret: Arc<Mutex<dyn Unit>> = Arc::new(Mutex::new(unit));
+        UnitManager::insert_unit_with_id(id, dret);
+        UnitManager::insert_into_path_table(path, id);
 
         return Ok(id);
     }

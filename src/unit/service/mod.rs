@@ -1,8 +1,9 @@
 use super::{BaseUnit, Unit};
 use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
 use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
+use crate::executor::ExitStatus;
 use crate::executor::service_executor::ServiceExecutor;
-use crate::manager::GLOBAL_UNIT_MANAGER;
+use crate::manager::UnitManager;
 use crate::parse::graph::Graph;
 use crate::parse::parse_service::ServiceParser;
 use crate::parse::parse_util::UnitParseUtil;
@@ -17,7 +18,7 @@ use std::rc::Rc;
 use std::string::String;
 use std::sync::Arc;
 use std::vec::Vec;
-#[derive(Clone, Debug,Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ServiceUnit {
     unit_base: BaseUnit,
     service_part: ServicePart,
@@ -39,20 +40,49 @@ impl Default for ServiceType {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy,PartialEq)]
 pub enum RestartOption {
-    AlwaysRestart,
-    OnSuccess,
-    OnFailure,
-    OnAbnormal,
-    OnAbort,
-    OnWatchdog,
-    None,
+    AlwaysRestart,  //总是重启
+    OnSuccess,  //在该服务正常退出时
+    OnFailure,  //在该服务启动失败时
+    OnAbnormal, //在该服务以非0错误码退出时
+    OnAbort,    //在该服务显示退出时(通过DragonReach手动退出)
+    OnWatchdog, //定时观测进程无响应时(当前未实现)
+    None,       //不重启
 }
 
 impl Default for RestartOption {
     fn default() -> Self {
         Self::None
+    }
+}
+
+impl RestartOption {
+    pub fn is_restart(&self,exit_status: &ExitStatus) -> bool{
+        if *self == Self::AlwaysRestart{
+            return true;
+        }
+
+        match (*self,*exit_status) {
+            (Self::OnSuccess,ExitStatus::Success) =>{
+                return true;
+            },
+            (Self::OnAbnormal,ExitStatus::Abnormal) =>{
+                return true;
+            },
+            (Self::OnAbort,ExitStatus::Abort) =>{
+                return true;
+            },
+            (Self::OnFailure,ExitStatus::Failure) =>{
+                return true;
+            },
+            (Self::OnWatchdog,ExitStatus::Watchdog) =>{
+                return true;
+            },
+            _ => {
+                return false;
+            }
+        }
     }
 }
 
@@ -86,7 +116,7 @@ pub struct ServicePart {
     timeout_start_sec: u64,
     timeout_stop_sec: u64,
     //上下文配置相关
-    environment: Vec<String>,
+    environment: Vec<(String, String)>,
     environment_file: String,
     nice: i8,
     working_directory: String,
@@ -102,7 +132,7 @@ impl Unit for ServiceUnit {
         self
     }
 
-    fn from_path(path: &str) -> Result<Arc<Self>, ParseError>
+    fn from_path(path: &str) -> Result<usize, ParseError>
     where
         Self: Sized,
     {
@@ -137,12 +167,16 @@ impl Unit for ServiceUnit {
         return self.unit_base.unit_id;
     }
 
-    fn run(&self) -> Result<(), RuntimeError> {
+    fn run(&mut self) -> Result<(), RuntimeError> {
         self.exec()
     }
 
     fn mut_unit_base(&mut self) -> &mut BaseUnit {
         return &mut self.unit_base;
+    }
+
+    fn after_exit(&mut self,exit_status: ExitStatus) {
+        ServiceExecutor::after_exit(self,exit_status);
     }
 }
 
@@ -155,7 +189,7 @@ impl ServiceUnit {
         return &self.service_part;
     }
 
-    fn exec(&self) -> Result<(), RuntimeError> {
+    fn exec(&mut self) -> Result<(), RuntimeError> {
         ServiceExecutor::exec(self)
     }
 }
@@ -266,7 +300,7 @@ impl ServicePart {
                 self.timeout_stop_sec = UnitParseUtil::parse_sec(val)?
             }
             ServiceUnitAttr::Environment => {
-                self.environment.push(String::from(val));
+                self.environment.push(UnitParseUtil::parse_env(val)?);
             }
             ServiceUnitAttr::EnvironmentFile => {
                 if !UnitParseUtil::is_valid_file(val) {
@@ -356,7 +390,7 @@ impl ServicePart {
     }
 
     // 上下文配置相关
-    pub fn environment(&self) -> &[String] {
+    pub fn environment(&self) -> &[(String, String)] {
         &self.environment
     }
 

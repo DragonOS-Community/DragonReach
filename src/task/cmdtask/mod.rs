@@ -1,7 +1,7 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 
-use std::{process::Command, string::String};
+use std::{eprint, eprintln, process::Command, string::String, vec::Vec};
 
 use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
 
@@ -17,6 +17,8 @@ impl CmdTask {
         let result = Command::new(&self.path).args(&self.cmd).output();
         match result {
             Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                print!("{}",stdout);
                 if !output.status.success() && !self.ignore {
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     eprintln!("{}: Command failed: {}", self.path, stderr);
