@@ -1,5 +1,5 @@
-// #![no_std]
-// #![no_main]
+#![no_std]
+#![no_main]
 #![feature(slice_pattern)]
 
 use cfg_if::cfg_if;
@@ -141,6 +141,8 @@ fn main() {
 
 #[cfg(not(target_os = "dragonos"))]
 fn main() {
+    use std::time::Instant;
+
     use parse::UnitParser;
 
     use crate::{
@@ -187,8 +189,13 @@ fn main() {
 
     // 启动完服务后进入主循环
     loop {
+        let time = Instant::now();
+
         // 检查各服务运行状态
         Manager::check_running_status();
         //println!(".");
+
+        let t = time.elapsed().as_secs_f64();
+        println!("{}",t);
     }
 }

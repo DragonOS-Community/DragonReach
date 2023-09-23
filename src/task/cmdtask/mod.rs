@@ -1,7 +1,7 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 
-use std::{eprint, eprintln, process::Command, string::String, vec::Vec};
+use std::{print,println,eprint, eprintln, process::Command, string::String, vec::Vec};
 
 use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
 
