@@ -39,10 +39,7 @@ impl Manager {
                     eprintln!("unit error: {}", e);
 
                     //test
-                    exited_unit.push((
-                        *unit.id(),
-                        ExitStatus::from_exit_code(!0),
-                    ));
+                    exited_unit.push((*unit.id(), ExitStatus::from_exit_code(!0)));
 
                     //从表中去除该任务
                     dead_unit.push(*unit.id());

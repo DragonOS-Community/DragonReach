@@ -41,52 +41,6 @@ const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
 #[cfg(target_os = "dragonos")]
 #[no_mangle]
 fn main() {
-    // use parse::UnitParser;
-
-    // use crate::{
-    //     executor::Executor,
-    //     manager::{Manager, UnitManager},
-    //     parse::parse_util::UnitParseUtil,
-    // };
-    // let id = ServiceUnit::from_path("/etc/reach/system/shell.service").unwrap();
-
-    // if id != 0 {
-    //     let unit = UnitManager::get_unit_with_id(&id).unwrap();
-    //     if let Err(e) = Executor::exec(&unit) {
-    //         eprintln!("Err:{}", e.error_format());
-    //     }
-    // }
-
-    // loop{
-
-    // }
-
-    //================================
-    // use std::process::Command;
-    // use std::process::Stdio;
-    // let proc = unsafe {
-    //     Command::new("/bin/shell.elf")
-    //         .stderr(Stdio::inherit())
-    //         .stdout(Stdio::inherit())
-    //         .stdin(Stdio::inherit())
-    //         .spawn()
-    // };
-
-    // match proc {
-    //     Ok(p) => {
-    //         println!("Service running...");
-    //     }
-    //     Err(err) => {
-    //         eprintln!(": Service startup failed: {}",err);
-    //     }
-    // }
-
-    // loop {
-
-    // }
-
-    //========================================
-
     use parse::UnitParser;
 
     use crate::{
@@ -100,16 +54,16 @@ fn main() {
     if let Ok(entries) = fs::read_dir(DRAGON_REACH_UNIT_DIR) {
         for entry in entries {
             if let Ok(entry) = entry {
-                let filename = entry.file_name();
-                let filename = filename.to_str().unwrap();
-                units_file_name.push(filename.to_string());
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_file() {
+                        let filename = entry.file_name();
+                        let filename = filename.to_str().unwrap();
+                        units_file_name.push(filename.to_string());
+                    }
+                }
             }
         }
     }
-
-    units_file_name.push(String::from("shell.service"));
-
-    println!("files: {:?}", units_file_name);
 
     //启动服务
     for path in units_file_name {
@@ -152,22 +106,22 @@ fn main() {
     };
 
     let mut units_file_name = Vec::new();
-    // //读取目录里面的unit文件
-    // if let Ok(entries) = fs::read_dir(DRAGON_REACH_UNIT_DIR) {
-    //     for entry in entries {
-    //         if let Ok(entry) = entry {
-    //             if let Ok(file_type) = entry.file_type() {
-    //                 if file_type.is_file() {
-    //                     let filename = entry.file_name();
-    //                     let filename = filename.to_str().unwrap();
-    //                     units_file_name.push(filename.to_string());
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    units_file_name.push("/home/heyicong/DragonReach/parse_test/test.service");
+    //读取目录里面的unit文件
+    if let Ok(entries) = fs::read_dir("/bin") {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_file() {
+                        let filename = entry.file_name();
+                        let filename = filename.to_str().unwrap();
+                        //units_file_name.push(filename.to_string());
+                    }
+                }
+            }
+        }
+    }
+  
+    units_file_name.push("/home/heyicong/DragonReach/parse_test/test.service".to_string());
 
     //启动服务
     for path in units_file_name {
@@ -195,7 +149,7 @@ fn main() {
         Manager::check_running_status();
         //println!(".");
 
-        let t = time.elapsed().as_secs_f64();
-        println!("{}",t);
+        let t = time.elapsed().as_micros();
+        //println!("{}",t);
     }
 }

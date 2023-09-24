@@ -96,11 +96,9 @@ pub trait Unit: Sync + Send + Debug {
     }
 
     /// ## Unit退出后逻辑
-    /// 
+    ///
     /// 一般只有可运行的Unit(如Service)需要重写此函数
-    fn after_exit(&mut self,exit_status: ExitStatus){
-
-    }
+    fn after_exit(&mut self, exit_status: ExitStatus) {}
 }
 
 //Unit状态
