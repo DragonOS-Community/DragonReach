@@ -3,6 +3,6 @@ Description=Shell
 
 [Service]
 Type=simple
-ExecStart=/bin/shell.el
+ExecStart=/bin/shell.elf
 Restart=always
 RestartSec=5000

@@ -1,9 +1,17 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 
-use std::{print,println,eprint, eprintln, process::Command, string::String, vec::Vec};
+use std::{
+    eprint, eprintln, print, println,
+    process::{Child, Command},
+    string::String,
+    vec::Vec,
+};
 
-use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
+use crate::{
+    error::runtime_error::{RuntimeError, RuntimeErrorType},
+    manager::UnitManager,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct CmdTask {
@@ -13,15 +21,37 @@ pub struct CmdTask {
 }
 
 impl CmdTask {
-    pub fn exec(&self) -> Result<(), RuntimeError> {
-        let result = Command::new(&self.path).args(&self.cmd).output();
+    pub fn spawn(&self, dir: String, envs: &[(String, String)]) -> Result<(), RuntimeError> {
+        let result = Command::new(&self.path)
+            .args(&self.cmd)
+            .current_dir(dir)
+            .envs(Vec::from(envs))
+            .spawn();
+        match result {
+            Ok(proc) => {
+                UnitManager::push_cmd_proc(proc);
+            }
+            Err(err) => {
+                if !self.ignore {
+                    eprintln!("{}: Command failed: {}", self.path, err);
+                    return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn no_spawn(&self, dir: String, envs: &[(String, String)]) -> Result<(), RuntimeError> {
+        let result = Command::new(&self.path)
+            .args(&self.cmd)
+            .current_dir(dir)
+            .envs(Vec::from(envs))
+            .output();
         match result {
             Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                print!("{}",stdout);
-                if !output.status.success() && !self.ignore {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    eprintln!("{}: Command failed: {}", self.path, stderr);
+                print!("{}", String::from_utf8_lossy(&output.stdout));
+                eprint!("{}", String::from_utf8_lossy(&output.stderr));
+                if !output.status.success() {
                     return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
                 }
             }

@@ -10,8 +10,8 @@ use crate::{
 use drstd as std;
 
 use std::{
-    any::Any, format, fs, os::unix::prelude::PermissionsExt, path::Path, print, println,
-    string::String, string::ToString, sync::Arc, vec, vec::Vec,
+    any::Any, format, fs, io::BufRead, os::unix::prelude::PermissionsExt, path::Path, print,
+    println, string::String, string::ToString, sync::Arc, vec, vec::Vec,
 };
 
 use super::{
@@ -706,5 +706,19 @@ impl UnitParseUtil {
             }
         }
         UnitType::Unknown
+    }
+
+    pub fn parse_environment_file(env_file: &str) -> Result<Vec<(String, String)>, ParseError> {
+        let mut envs = Vec::new();
+        if env_file.len() > 0 {
+            let env_reader = UnitParser::get_reader(env_file, UnitType::Unknown)?;
+            for line in env_reader.lines() {
+                if let Ok(line) = line {
+                    let x = UnitParseUtil::parse_env(line.as_str())?;
+                    envs.push(x);
+                }
+            }
+        }
+        return Ok(envs);
     }
 }

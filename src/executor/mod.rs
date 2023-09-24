@@ -15,7 +15,7 @@ use crate::{
 
 use self::dep_graph::DepGraph;
 
-#[derive(Debug,Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum ExitStatus {
     Success,
     Failure,
@@ -26,12 +26,12 @@ pub enum ExitStatus {
 
 impl ExitStatus {
     /// ## 从错误码获得退出状态
-    /// 
+    ///
     /// 注意，该方法只会返回Success(exit_code == 0)和Abnormal(exit_code != 0)两种状态
     /// 其他DragonReach定义的退出状态需要手动指定
-    /// 
+    ///
     /// ### return Success(exit_code == 0)、Abnormal(exit_code != 0)
-    pub fn from_exit_code(exit_code: i32) -> Self{
+    pub fn from_exit_code(exit_code: i32) -> Self {
         match exit_code {
             0 => return Self::Success,
             _ => return Self::Abnormal,

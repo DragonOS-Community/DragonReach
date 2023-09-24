@@ -23,12 +23,15 @@ lazy_static! {
 
     // id到unit的映射表，全局的Unit管理表
     static ref ID_TO_UNIT_MAP: RwLock<HashMap<usize,Arc<Mutex<dyn Unit>>>> = RwLock::new(HashMap::new());
-    
+
     // 辅助表，通过服务名映射其id
     static ref PATH_TO_UNIT_MAP: RwLock<HashMap<u64,usize>> = RwLock::new(HashMap::new());
 
     // 全局运行中的Unit表
     pub(super) static ref RUNNING_TABLE: RwLock<RunningTableManager> = RwLock::new(RunningTableManager { running_table: Vec::new() });
+
+    // CMD进程表，用于处理Unit的CMD派生进程(ExecStartPre等命令派生进程)
+    pub(super) static ref CMD_PROCESS_TABLE: RwLock<HashMap<u32,Mutex<Child>>> = RwLock::new(HashMap::new());
 }
 
 pub struct RunningTableManager {
@@ -146,38 +149,49 @@ impl UnitManager {
         }
     }
 
-    pub fn contains_id(id: &usize) -> bool{
+    pub fn contains_id(id: &usize) -> bool {
         ID_TO_UNIT_MAP.read().unwrap().contains_key(id)
     }
 
-    pub fn pop_a_idle_service() -> Option<Arc<Mutex<dyn Unit>>>{
+    pub fn pop_a_idle_service() -> Option<Arc<Mutex<dyn Unit>>> {
         let id = IDLE_SERVIEC_DEQUE.lock().unwrap().pop_front();
         match id {
             Some(id) => {
                 return Self::get_unit_with_id(&id);
             }
-            None =>{
+            None => {
                 return None;
             }
         }
     }
 
-    pub fn push_a_idle_service(id: usize){
+    pub fn push_a_idle_service(id: usize) {
         if !Self::contains_id(&id) {
             return;
         }
         IDLE_SERVIEC_DEQUE.lock().unwrap().push_back(id);
     }
 
-    pub fn push_flag_running(id: usize){
+    pub fn push_flag_running(id: usize) {
         let mut t = FLAG_RUNNING.write().unwrap();
-        if t.contains(&id){
+        if t.contains(&id) {
             return;
         }
         t.push(id);
     }
 
-    pub fn running_count() -> usize{
+    pub fn running_count() -> usize {
         return RUNNING_TABLE.read().unwrap().running_table.len();
+    }
+
+    pub fn push_cmd_proc(proc: Child) {
+        CMD_PROCESS_TABLE
+            .write()
+            .unwrap()
+            .insert(proc.id(), Mutex::new(proc));
+    }
+
+    pub fn remove_cmd_proc(id: u32) {
+        CMD_PROCESS_TABLE.write().unwrap().remove(&id);
     }
 }

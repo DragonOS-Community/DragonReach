@@ -71,74 +71,25 @@ impl ServiceExecutor {
             }
         }
 
-        //获取环境变量
-        //先获取指定的环境变量
-        let mut envs = Vec::from(service.service_part().environment());
-
-        //若指定了环境变量文件，则解析环境变量文件
-        let env_file = service.service_part().environment_file();
-        if env_file.len() > 0 {
-            let env_reader = match UnitParser::get_reader(env_file, UnitType::Unknown) {
-                Ok(reader) => reader,
-                Err(_) => {
-                    return Err(RuntimeError::new(RuntimeErrorType::Custom(
-                        "Incorrect environment variable configuration file".to_string(),
-                    )));
-                }
-            };
-            for line in env_reader.lines() {
-                if let Ok(line) = line {
-                    let x = match UnitParseUtil::parse_env(line.as_str()) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            return Err(RuntimeError::new(RuntimeErrorType::Custom(
-                                "Failed to parse environment variable configuration file"
-                                    .to_string(),
-                            )));
-                        }
-                    };
-                    envs.push(x);
-                }
-            }
-        }
-
-        //服务配置环境变量，配置工作目录
-        //获取工作目录
-        let mut dir = service.service_part().working_directory();
-        if dir.is_empty() {
-            dir = "/";
-        }
         //获取启动命令
         let exec_start = service.service_part().exec_start();
         println!("exec:{}", exec_start.path);
-        //处理ExecStartsPre,准备在服务启动前执行的命令
+
         //TODO:设置uid与gid
-        let cmds = service.service_part().exec_start_pre().clone();
-        let proc = unsafe {
-            Command::new(&exec_start.path)
-                .args(&exec_start.cmd)
-                .current_dir(dir)
-                .envs(envs)
-                .stderr(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .stdin(Stdio::inherit())
-                .pre_exec(move || {
-                    for cmdtask in cmds.clone() {
-                        match cmdtask.exec() {
-                            Ok(_) => (),
-                            Err(e) => {
-                                eprintln!("{}", e.error_format());
-                                return Err(Error::new(
-                                    ErrorKind::Interrupted,
-                                    "ExecStartPreFailed",
-                                ));
-                            }
-                        };
-                    }
-                    Ok(())
-                })
-                .spawn()
-        };
+
+        //处理ExecStartsPre,准备在服务启动前执行的命令
+        Self::exec_start_pre(service)?;
+
+        //创建服务进程
+        //服务配置环境变量，配置工作目录
+        let proc = Command::new(&exec_start.path)
+            .args(&exec_start.cmd)
+            .current_dir(service.service_part().working_directory())
+            .envs(Vec::from(service.service_part().environment()))
+            .stderr(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stdin(Stdio::inherit())
+            .spawn();
 
         match proc {
             Ok(p) => {
@@ -185,7 +136,21 @@ impl ServiceExecutor {
     fn exec_start_pos(service: &ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_start_pos();
         for cmd in cmds {
-            cmd.exec()?;
+            cmd.spawn(
+                service.service_part().working_directory().to_string(),
+                service.service_part().environment(),
+            )?;
+        }
+        Ok(())
+    }
+
+    fn exec_start_pre(service: &ServiceUnit) -> Result<(), RuntimeError> {
+        let cmds = service.service_part().exec_start_pre();
+        for cmd in cmds {
+            cmd.spawn(
+                service.service_part().working_directory().to_string(),
+                service.service_part().environment(),
+            )?;
         }
         Ok(())
     }
@@ -194,7 +159,10 @@ impl ServiceExecutor {
     fn exec_stop(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_stop();
         for cmd in cmds {
-            cmd.exec()?;
+            cmd.no_spawn(
+                service.service_part().working_directory().to_string(),
+                service.service_part().environment(),
+            )?;
         }
         Ok(())
     }
@@ -203,7 +171,10 @@ impl ServiceExecutor {
     fn exec_stop_post(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_stop_post();
         for cmd in cmds {
-            cmd.exec()?;
+            cmd.no_spawn(
+                service.service_part().working_directory().to_string(),
+                service.service_part().environment(),
+            )?;
         }
         Ok(())
     }
@@ -211,7 +182,10 @@ impl ServiceExecutor {
     fn exec_reload(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_reload();
         for cmd in cmds {
-            cmd.exec()?;
+            cmd.no_spawn(
+                service.service_part().working_directory().to_string(),
+                service.service_part().environment(),
+            )?;
         }
         Ok(())
     }
@@ -220,6 +194,8 @@ impl ServiceExecutor {
     pub fn after_exit(service: &mut ServiceUnit, exit_status: ExitStatus) {
         //TODO: 需要考虑是否需要在此处执行退出后代码，还是只需要显式退出时才执行
         let _ = Self::exec_stop_post(service);
+
+        //
 
         //判断是否需要restart，需要则再次启动服务
         if service.service_part().restart().is_restart(&exit_status) {

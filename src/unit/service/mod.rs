@@ -1,8 +1,8 @@
 use super::{BaseUnit, Unit};
 use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
 use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
-use crate::executor::ExitStatus;
 use crate::executor::service_executor::ServiceExecutor;
+use crate::executor::ExitStatus;
 use crate::manager::UnitManager;
 use crate::parse::graph::Graph;
 use crate::parse::parse_service::ServiceParser;
@@ -18,10 +18,21 @@ use std::rc::Rc;
 use std::string::String;
 use std::sync::Arc;
 use std::vec::Vec;
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ServiceUnit {
     unit_base: BaseUnit,
     service_part: ServicePart,
+}
+
+impl Default for ServiceUnit {
+    fn default() -> Self {
+        let mut sp = ServicePart::default();
+        sp.working_directory = String::from("/");
+        Self {
+            unit_base: BaseUnit::default(),
+            service_part: sp,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -40,15 +51,15 @@ impl Default for ServiceType {
     }
 }
 
-#[derive(Debug, Clone, Copy,PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RestartOption {
-    AlwaysRestart,  //总是重启
-    OnSuccess,  //在该服务正常退出时
-    OnFailure,  //在该服务启动失败时
-    OnAbnormal, //在该服务以非0错误码退出时
-    OnAbort,    //在该服务显示退出时(通过DragonReach手动退出)
-    OnWatchdog, //定时观测进程无响应时(当前未实现)
-    None,       //不重启
+    AlwaysRestart, //总是重启
+    OnSuccess,     //在该服务正常退出时
+    OnFailure,     //在该服务启动失败时
+    OnAbnormal,    //在该服务以非0错误码退出时
+    OnAbort,       //在该服务显示退出时(通过DragonReach手动退出)
+    OnWatchdog,    //定时观测进程无响应时(当前未实现)
+    None,          //不重启
 }
 
 impl Default for RestartOption {
@@ -58,27 +69,27 @@ impl Default for RestartOption {
 }
 
 impl RestartOption {
-    pub fn is_restart(&self,exit_status: &ExitStatus) -> bool{
-        if *self == Self::AlwaysRestart{
+    pub fn is_restart(&self, exit_status: &ExitStatus) -> bool {
+        if *self == Self::AlwaysRestart {
             return true;
         }
 
-        match (*self,*exit_status) {
-            (Self::OnSuccess,ExitStatus::Success) =>{
+        match (*self, *exit_status) {
+            (Self::OnSuccess, ExitStatus::Success) => {
                 return true;
-            },
-            (Self::OnAbnormal,ExitStatus::Abnormal) =>{
+            }
+            (Self::OnAbnormal, ExitStatus::Abnormal) => {
                 return true;
-            },
-            (Self::OnAbort,ExitStatus::Abort) =>{
+            }
+            (Self::OnAbort, ExitStatus::Abort) => {
                 return true;
-            },
-            (Self::OnFailure,ExitStatus::Failure) =>{
+            }
+            (Self::OnFailure, ExitStatus::Failure) => {
                 return true;
-            },
-            (Self::OnWatchdog,ExitStatus::Watchdog) =>{
+            }
+            (Self::OnWatchdog, ExitStatus::Watchdog) => {
                 return true;
-            },
+            }
             _ => {
                 return false;
             }
@@ -117,7 +128,6 @@ pub struct ServicePart {
     timeout_stop_sec: u64,
     //上下文配置相关
     environment: Vec<(String, String)>,
-    environment_file: String,
     nice: i8,
     working_directory: String,
     root_directory: String,
@@ -175,8 +185,8 @@ impl Unit for ServiceUnit {
         return &mut self.unit_base;
     }
 
-    fn after_exit(&mut self,exit_status: ExitStatus) {
-        ServiceExecutor::after_exit(self,exit_status);
+    fn after_exit(&mut self, exit_status: ExitStatus) {
+        ServiceExecutor::after_exit(self, exit_status);
     }
 }
 
@@ -306,7 +316,8 @@ impl ServicePart {
                 if !UnitParseUtil::is_valid_file(val) {
                     return Err(ParseError::new(ParseErrorType::EFILE, String::new(), 0));
                 }
-                self.environment_file = String::from(val);
+                self.environment
+                    .extend(UnitParseUtil::parse_environment_file(val)?);
             }
             ServiceUnitAttr::Nice => {
                 self.nice = UnitParseUtil::parse_nice(val)?;
@@ -392,10 +403,6 @@ impl ServicePart {
     // 上下文配置相关
     pub fn environment(&self) -> &[(String, String)] {
         &self.environment
-    }
-
-    pub fn environment_file(&self) -> &str {
-        &self.environment_file
     }
 
     pub fn nice(&self) -> i8 {
