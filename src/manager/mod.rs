@@ -67,9 +67,10 @@ impl Manager {
         }
 
         // 交付处理子进程退出逻辑
-        for tmp in exited_unit {
-            let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();
-            unit.lock().unwrap().after_exit(tmp.1);
-        }
+        // TODO:先不做此处理，因为DragonOS的fork进程管道问题尚未解决
+        // for tmp in exited_unit {
+        //     let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();
+        //     unit.lock().unwrap().after_exit(tmp.1);
+        // }
     }
 }
