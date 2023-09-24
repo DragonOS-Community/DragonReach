@@ -1,5 +1,5 @@
-// #![no_std]
-// #![no_main]
+#![no_std]
+#![no_main]
 #![feature(slice_pattern)]
 
 use cfg_if::cfg_if;
@@ -120,7 +120,7 @@ fn main() {
             }
         }
     }
-
+  
     units_file_name.push("/home/heyicong/DragonReach/parse_test/test.service".to_string());
 
     //启动服务

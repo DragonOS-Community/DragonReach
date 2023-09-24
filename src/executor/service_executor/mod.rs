@@ -195,8 +195,6 @@ impl ServiceExecutor {
         //TODO: 需要考虑是否需要在此处执行退出后代码，还是只需要显式退出时才执行
         let _ = Self::exec_stop_post(service);
 
-        //
-
         //判断是否需要restart，需要则再次启动服务
         if service.service_part().restart().is_restart(&exit_status) {
             let _ = Self::exec_reload(service);
