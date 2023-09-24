@@ -1,22 +1,42 @@
 use super::{BaseUnit, Unit};
-use crate::error::{ParseError, ParseErrorType};
+use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
+use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
+use crate::executor::ExitStatus;
+use crate::executor::service_executor::ServiceExecutor;
+use crate::executor::ExitStatus;
+use crate::manager::UnitManager;
+use crate::parse::graph::Graph;
 use crate::parse::parse_service::ServiceParser;
 use crate::parse::parse_util::UnitParseUtil;
-use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
+use crate::parse::{Segment, UnitParser, SERVICE_UNIT_ATTR_TABLE};
 use crate::task::cmdtask::CmdTask;
 
 #[cfg(target_os = "dragonos")]
 use drstd as std;
+use std::mem::MaybeUninit;
+use std::process::{Child, Command};
 use std::rc::Rc;
 use std::string::String;
+use std::sync::Arc;
 use std::vec::Vec;
-#[derive(Default)]
+#[derive(Clone, Debug)]
 pub struct ServiceUnit {
     unit_base: BaseUnit,
     service_part: ServicePart,
 }
 
-#[derive(Debug)]
+impl Default for ServiceUnit {
+    fn default() -> Self {
+        let mut sp = ServicePart::default();
+        sp.working_directory = String::from("/");
+        Self {
+            unit_base: BaseUnit::default(),
+            service_part: sp,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum ServiceType {
     Simple,
     Forking,
@@ -32,15 +52,15 @@ impl Default for ServiceType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RestartOption {
-    AlwaysRestart,
-    OnSuccess,
-    OnFailure,
-    OnAbnormal,
-    OnAbort,
-    OnWatchdog,
-    None,
+    AlwaysRestart, //总是重启
+    OnSuccess,     //在该服务正常退出时
+    OnFailure,     //在该服务启动失败时
+    OnAbnormal,    //在该服务以非0错误码退出时
+    OnAbort,       //在该服务显示退出时(通过DragonReach手动退出)
+    OnWatchdog,    //定时观测进程无响应时(当前未实现)
+    None,          //不重启
 }
 
 impl Default for RestartOption {
@@ -49,7 +69,36 @@ impl Default for RestartOption {
     }
 }
 
-#[derive(Debug)]
+impl RestartOption {
+    pub fn is_restart(&self, exit_status: &ExitStatus) -> bool {
+        if *self == Self::AlwaysRestart {
+            return true;
+        }
+
+        match (*self, *exit_status) {
+            (Self::OnSuccess, ExitStatus::Success) => {
+                return true;
+            }
+            (Self::OnAbnormal, ExitStatus::Abnormal) => {
+                return true;
+            }
+            (Self::OnAbort, ExitStatus::Abort) => {
+                return true;
+            }
+            (Self::OnFailure, ExitStatus::Failure) => {
+                return true;
+            }
+            (Self::OnWatchdog, ExitStatus::Watchdog) => {
+                return true;
+            }
+            _ => {
+                return false;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum MountFlag {
     Shared,
     Slave,
@@ -62,13 +111,13 @@ impl Default for MountFlag {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ServicePart {
     //生命周期相关
     service_type: ServiceType,
     ///
     remain_after_exit: bool,
-    exec_start: Vec<CmdTask>,
+    exec_start: CmdTask,
     exec_start_pre: Vec<CmdTask>,
     exec_start_pos: Vec<CmdTask>,
     exec_reload: Vec<CmdTask>,
@@ -79,8 +128,7 @@ pub struct ServicePart {
     timeout_start_sec: u64,
     timeout_stop_sec: u64,
     //上下文配置相关
-    environment: Vec<String>,
-    environment_file: String,
+    environment: Vec<(String, String)>,
     nice: i8,
     working_directory: String,
     root_directory: String,
@@ -95,7 +143,7 @@ impl Unit for ServiceUnit {
         self
     }
 
-    fn from_path(path: &str) -> Result<Rc<Self>, ParseError>
+    fn from_path(path: &str) -> Result<usize, ParseError>
     where
         Self: Sized,
     {
@@ -104,9 +152,13 @@ impl Unit for ServiceUnit {
 
     fn set_attr(&mut self, segment: Segment, attr: &str, val: &str) -> Result<(), ParseError> {
         if segment != Segment::Service {
-            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(),0));
+            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
-        let attr_type = SERVICE_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(ParseErrorType::EINVAL, String::new(),0));
+        let attr_type = SERVICE_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(
+            ParseErrorType::EINVAL,
+            String::new(),
+            0,
+        ));
         return self.service_part.set_attr(attr_type.unwrap(), val);
     }
 
@@ -116,6 +168,26 @@ impl Unit for ServiceUnit {
 
     fn unit_type(&self) -> super::UnitType {
         return self.unit_base.unit_type;
+    }
+
+    fn unit_base(&self) -> &BaseUnit {
+        return &self.unit_base;
+    }
+
+    fn unit_id(&self) -> usize {
+        return self.unit_base.unit_id;
+    }
+
+    fn run(&mut self) -> Result<(), RuntimeError> {
+        self.exec()
+    }
+
+    fn mut_unit_base(&mut self) -> &mut BaseUnit {
+        return &mut self.unit_base;
+    }
+
+    fn after_exit(&mut self, exit_status: ExitStatus) {
+        ServiceExecutor::after_exit(self, exit_status);
     }
 }
 
@@ -127,7 +199,15 @@ impl ServiceUnit {
     pub fn service_part(&self) -> &ServicePart {
         return &self.service_part;
     }
+
+    fn exec(&mut self) -> Result<(), RuntimeError> {
+        ServiceExecutor::exec(self)
+    }
 }
+
+unsafe impl Sync for ServiceUnit {}
+
+unsafe impl Send for ServiceUnit {}
 
 pub enum ServiceUnitAttr {
     None,
@@ -175,7 +255,7 @@ pub enum ServiceUnitAttr {
 }
 
 impl ServicePart {
-    pub fn set_attr(&mut self, attr: &ServiceUnitAttr, val: &str) -> Result<(), ParseError> {
+    pub fn set_attr(&'_ mut self, attr: &ServiceUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {
             ServiceUnitAttr::Type => match val {
                 "simple" => self.service_type = ServiceType::Simple,
@@ -185,14 +265,14 @@ impl ServicePart {
                 "notify" => self.service_type = ServiceType::Notify,
                 "idle" => self.service_type = ServiceType::Idle,
                 _ => {
-                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(),0));
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                 }
             },
             ServiceUnitAttr::RemainAfterExit => {
                 self.remain_after_exit = UnitParseUtil::parse_boolean(val)?
             }
             ServiceUnitAttr::ExecStart => {
-                self.exec_start.extend(UnitParseUtil::parse_cmd_task(val)?);
+                self.exec_start = UnitParseUtil::parse_cmd_task(val)?[0].clone();
             }
             ServiceUnitAttr::ExecStartPre => {
                 self.exec_start_pre
@@ -221,7 +301,7 @@ impl ServicePart {
                 "on-abort" => self.restart = RestartOption::OnAbort,
                 "on-watchdog" => self.restart = RestartOption::OnWatchdog,
                 _ => {
-                    return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                 }
             },
             ServiceUnitAttr::TimeoutStartSec => {
@@ -231,20 +311,21 @@ impl ServicePart {
                 self.timeout_stop_sec = UnitParseUtil::parse_sec(val)?
             }
             ServiceUnitAttr::Environment => {
-                self.environment.push(String::from(val));
+                self.environment.push(UnitParseUtil::parse_env(val)?);
             }
             ServiceUnitAttr::EnvironmentFile => {
                 if !UnitParseUtil::is_valid_file(val) {
-                    return Err(ParseError::new(ParseErrorType::EFILE,String::new(),0));
+                    return Err(ParseError::new(ParseErrorType::EFILE, String::new(), 0));
                 }
-                self.environment_file = String::from(val);
+                self.environment
+                    .extend(UnitParseUtil::parse_environment_file(val)?);
             }
             ServiceUnitAttr::Nice => {
                 self.nice = UnitParseUtil::parse_nice(val)?;
             }
             ServiceUnitAttr::WorkingDirectory => {
                 if !UnitParseUtil::is_dir(val) {
-                    return Err(ParseError::new(ParseErrorType::ENODIR,String::new(),0));
+                    return Err(ParseError::new(ParseErrorType::ENODIR, String::new(), 0));
                 }
                 self.working_directory = String::from(val);
             }
@@ -261,11 +342,11 @@ impl ServicePart {
                 "slave" => self.mount_flags = MountFlag::Slave,
                 "private" => self.mount_flags = MountFlag::Private,
                 _ => {
-                    return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
                 }
             },
             _ => {
-                return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         }
         return Ok(());
@@ -280,7 +361,7 @@ impl ServicePart {
         self.remain_after_exit
     }
 
-    pub fn exec_start(&self) -> &Vec<CmdTask> {
+    pub fn exec_start(&self) -> &CmdTask {
         &self.exec_start
     }
 
@@ -321,12 +402,8 @@ impl ServicePart {
     }
 
     // 上下文配置相关
-    pub fn environment(&self) -> &[String] {
+    pub fn environment(&self) -> &[(String, String)] {
         &self.environment
-    }
-
-    pub fn environment_file(&self) -> &str {
-        &self.environment_file
     }
 
     pub fn nice(&self) -> i8 {

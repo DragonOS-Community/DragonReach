@@ -1,0 +1,20 @@
+[Unit]
+Description=My Service1
+Documentation=https://example.com/docs/my-service.html
+#After=/home/heyicong/DragonReach/parse_test/test2.service
+
+[Service]
+Type=simple
+ExecStart=/bin/ls
+WorkingDirectory=/home/heyicong/
+User=myuser
+Group=mygroup
+Environment=VAR1=value1
+Environment=VAR2=value2
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=10s
+TimeoutStopSec=10s
+
+[Install]
+#WantedBy=multi-user.target

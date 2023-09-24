@@ -1,36 +1,50 @@
-use crate::error::ParseError;
-use crate::error::ParseErrorType;
+use crate::error::parse_error::ParseError;
+use crate::error::parse_error::ParseErrorType;
+use crate::error::runtime_error::RuntimeError;
+use crate::error::runtime_error::RuntimeErrorType;
+use crate::executor::ExitStatus;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
 
 #[cfg(target_os = "dragonos")]
 use drstd as std;
+use hashbrown::HashMap;
 
 use std::any::Any;
-use std::boxed::Box;
 use std::default::Default;
-use std::rc::Rc;
+use std::fmt::Debug;
+use std::marker::{Send, Sized, Sync};
+use std::option::Option::Some;
 use std::result::Result;
 use std::result::Result::Err;
 use std::result::Result::Ok;
 use std::string::String;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::vec::Vec;
 
 pub mod service;
 pub mod target;
 
 use self::target::TargetUnit;
+use lazy_static::lazy_static;
+
+pub fn generate_unit_id() -> usize {
+    static UNIT_ID: AtomicUsize = AtomicUsize::new(1);
+    return UNIT_ID.fetch_add(1, Ordering::SeqCst);
+}
 
 //所有可解析的Unit都应该实现该trait
-pub trait Unit {
+pub trait Unit: Sync + Send + Debug {
     /// @brief 从文件获取到Unit,该函数是解析Unit文件的入口函数
     ///
     /// 从path解析Unit属性
     ///
     /// @param path 需解析的文件
     ///
-    /// @return 解析成功则返回对应Unit的Rc指针，否则返回Err
-    fn from_path(path: &str) -> Result<Rc<Self>, ParseError>
+    /// @return 解析成功则返回对应Unit的id，否则返回Err
+    fn from_path(path: &str) -> Result<usize, ParseError>
     where
         Self: Sized;
 
@@ -60,11 +74,36 @@ pub trait Unit {
     ///
     /// ## return UnitType
     fn unit_type(&self) -> UnitType;
+
+    fn unit_base(&self) -> &BaseUnit;
+
+    fn mut_unit_base(&mut self) -> &mut BaseUnit;
+
+    fn unit_id(&self) -> usize;
+
+    /// ## Unit的工作逻辑
+    ///
+    /// ### return OK(())/Err
+    fn run(&mut self) -> Result<(), RuntimeError>;
+
+    /// ## 设置unit_id
+    ///
+    /// ### return OK(())/Err
+    fn set_unit_id(&mut self) -> usize {
+        let ret = generate_unit_id();
+        self.mut_unit_base().set_id(ret);
+        ret
+    }
+
+    /// ## Unit退出后逻辑
+    ///
+    /// 一般只有可运行的Unit(如Service)需要重写此函数
+    fn after_exit(&mut self, exit_status: ExitStatus) {}
 }
 
 //Unit状态
-#[derive(Clone, Copy, Debug)]
-enum UnitState {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum UnitState {
     Enabled,
     Disabled,
     Static,
@@ -90,11 +129,13 @@ pub enum UnitType {
 }
 
 //记录unit文件基本信息，这个结构体里面的信息是所有Unit文件都可以有的属性
+#[derive(Debug, Clone)]
 pub struct BaseUnit {
     unit_part: UnitPart,
     install_part: InstallPart,
     state: UnitState,
     unit_type: UnitType,
+    unit_id: usize,
 }
 
 impl Default for BaseUnit {
@@ -104,6 +145,7 @@ impl Default for BaseUnit {
             install_part: InstallPart::default(),
             state: UnitState::Disabled,
             unit_type: UnitType::Unknown,
+            unit_id: 0,
         }
     }
 }
@@ -152,9 +194,13 @@ impl BaseUnit {
     pub fn unit_type(&self) -> &UnitType {
         &self.unit_type
     }
+
+    pub fn set_id(&mut self, id: usize) {
+        self.unit_id = id;
+    }
 }
 
-#[derive(Default,Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Url {
     pub url_string: String, // pub protocol: String,
                             // pub host: String,
@@ -165,17 +211,18 @@ pub struct Url {
 }
 
 //对应Unit文件的Unit段
+#[derive(Debug, Clone)]
 pub struct UnitPart {
     description: String,
     documentation: Vec<Url>,
-    requires: Vec<Rc<dyn Unit>>,
-    wants: Vec<Rc<dyn Unit>>,
-    after: Vec<Rc<dyn Unit>>,
-    before: Vec<Rc<dyn Unit>>,
-    binds_to: Vec<Rc<dyn Unit>>,
-    part_of: Vec<Rc<dyn Unit>>,
-    on_failure: Vec<Rc<dyn Unit>>,
-    conflicts: Vec<Rc<dyn Unit>>,
+    requires: Vec<usize>,
+    wants: Vec<usize>,
+    after: Vec<usize>,
+    before: Vec<usize>,
+    binds_to: Vec<usize>,
+    part_of: Vec<usize>,
+    on_failure: Vec<usize>,
+    conflicts: Vec<usize>,
 }
 
 impl Default for UnitPart {
@@ -199,7 +246,11 @@ impl UnitPart {
     pub fn set_attr(&mut self, attr: &BaseUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {
             BaseUnitAttr::None => {
-                return Err(ParseError::new(ParseErrorType::ESyntaxError,String::new(),0));
+                return Err(ParseError::new(
+                    ParseErrorType::ESyntaxError,
+                    String::new(),
+                    0,
+                ));
             }
             BaseUnitAttr::Description => self.description = String::from(val),
             BaseUnitAttr::Documentation => {
@@ -281,44 +332,45 @@ impl UnitPart {
         &self.documentation
     }
 
-    pub fn requires(&self) -> &[Rc<dyn Unit>] {
+    pub fn requires(&self) -> &[usize] {
         &self.requires
     }
 
-    pub fn wants(&self) -> &[Rc<dyn Unit>] {
+    pub fn wants(&self) -> &[usize] {
         &self.wants
     }
 
-    pub fn after(&self) -> &[Rc<dyn Unit>] {
+    pub fn after(&self) -> &[usize] {
         &self.after
     }
 
-    pub fn before(&self) -> &[Rc<dyn Unit>] {
+    pub fn before(&self) -> &[usize] {
         &self.before
     }
 
-    pub fn binds_to(&self) -> &[Rc<dyn Unit>] {
+    pub fn binds_to(&self) -> &[usize] {
         &self.binds_to
     }
 
-    pub fn part_of(&self) -> &[Rc<dyn Unit>] {
+    pub fn part_of(&self) -> &[usize] {
         &self.part_of
     }
 
-    pub fn on_failure(&self) -> &[Rc<dyn Unit>] {
+    pub fn on_failure(&self) -> &[usize] {
         &self.on_failure
     }
 
-    pub fn conflicts(&self) -> &[Rc<dyn Unit>] {
+    pub fn conflicts(&self) -> &[usize] {
         &self.conflicts
     }
 }
 
 //对应Unit文件的Install段
+#[derive(Debug, Clone)]
 pub struct InstallPart {
-    wanted_by: Vec<Rc<TargetUnit>>,
-    requires_by: Vec<Rc<TargetUnit>>,
-    also: Vec<Rc<dyn Unit>>,
+    wanted_by: Vec<usize>,
+    requires_by: Vec<usize>,
+    also: Vec<usize>,
     alias: String,
 }
 
@@ -364,21 +416,21 @@ impl InstallPart {
                 self.alias = String::from(val);
             }
             InstallUnitAttr::None => {
-                return Err(ParseError::new(ParseErrorType::EINVAL,String::new(),0));
+                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
         }
         return Ok(());
     }
 
-    pub fn wanted_by(&self) -> &[Rc<TargetUnit>] {
+    pub fn wanted_by(&self) -> &[usize] {
         &self.wanted_by
     }
 
-    pub fn requires_by(&self) -> &[Rc<TargetUnit>] {
+    pub fn requires_by(&self) -> &[usize] {
         &self.requires_by
     }
 
-    pub fn also(&self) -> &[Rc<dyn Unit>] {
+    pub fn also(&self) -> &[usize] {
         &self.also
     }
 

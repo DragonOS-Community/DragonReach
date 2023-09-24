@@ -1,7 +1,9 @@
-use crate::error::ParseErrorType;
+use crate::error::parse_error::ParseErrorType;
+use crate::manager::{self, UnitManager};
 use crate::unit::{BaseUnit, Unit};
+use crate::DRAGON_REACH_UNIT_DIR;
 use crate::{
-    error::ParseError,
+    error::parse_error::ParseError,
     unit::{service::ServiceUnitAttr, BaseUnitAttr, InstallUnitAttr, UnitType},
 };
 
@@ -13,13 +15,18 @@ use lazy_static::lazy_static;
 use std::format;
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::rc::Rc;
 use std::string::String;
-use std::vec::Vec;
 use std::string::ToString;
+use std::sync::{Arc, Mutex};
+use std::vec::Vec;
 
-pub mod parse_target;
+use self::parse_service::ServiceParser;
+use self::parse_target::TargetParser;
+use self::parse_util::UnitParseUtil;
+
+pub mod graph;
 pub mod parse_service;
+pub mod parse_target;
 pub mod parse_util;
 
 //对应Unit段类型
@@ -151,35 +158,52 @@ pub struct UnitParser;
 impl UnitParser {
     /// @brief 从path获取到BufReader,此方法将会检验文件类型
     ///
-    /// 从path获取到BufReader,此方法将会检验文件类型
+    /// 如果指定UnitType,则进行文件名检查
     ///
     /// @param path 需解析的文件路径
     ///
     /// @param unit_type 指定Unit类型
     ///
     /// @return 成功则返回对应BufReader，否则返回Err
-    fn get_unit_reader(path: &str, unit_type: UnitType) -> Result<io::BufReader<File>, ParseError> {
-        let suffix = match path.rfind('.') {
-            Some(idx) => &path[idx + 1..],
-            None => {
-                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
+    pub fn get_reader(path: &str, unit_type: UnitType) -> Result<io::BufReader<File>, ParseError> {
+        //判断是否为路径，若不为路径则到定向到默认unit文件夹
+        let mut realpath = path.to_string();
+        if !path.contains('/') {
+            realpath = format!("{}{}", DRAGON_REACH_UNIT_DIR, &path).to_string();
+        }
+        let path = realpath.as_str();
+        // 如果指定UnitType,则进行文件名检查，不然直接返回reader
+        if unit_type != UnitType::Unknown {
+            let suffix = match path.rfind('.') {
+                Some(idx) => &path[idx + 1..],
+                None => {
+                    return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
+                }
+            };
+            let u_type = UNIT_SUFFIX.get(suffix);
+            if u_type.is_none() {
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
-        };
-        let u_type = UNIT_SUFFIX.get(suffix);
-        if u_type.is_none() {
-            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
+            if *(u_type.unwrap()) != unit_type {
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
+            }
         }
-        if *(u_type.unwrap()) != unit_type {
-            return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
-        }
-
         let file = match File::open(path) {
             Ok(file) => file,
             Err(_) => {
-                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(),0));
+                return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
         };
         return Ok(io::BufReader::new(file));
+    }
+
+    pub fn from_path(path: &str) -> Result<usize, ParseError> {
+        let unit_type = UnitParseUtil::parse_type(&path);
+        match unit_type {
+            UnitType::Service => ServiceParser::parse(path),
+            UnitType::Target => TargetParser::parse(path),
+            _ => Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0)),
+        }
     }
 
     /// @brief 将path路径的文件解析为unit_type类型的Unit
@@ -190,14 +214,24 @@ impl UnitParser {
     ///
     /// @param unit_type 指定Unit类型
     ///
-    /// @return 解析成功则返回Ok(Rc<T>)，否则返回Err
-    pub fn parse<T: Unit + Default>(path: &str, unit_type: UnitType) -> Result<Rc<T>, ParseError> {
+    /// @return 解析成功则返回Ok(Arc<T>)，否则返回Err
+    pub fn parse<T: Unit + Default + Clone + 'static>(
+        path: &str,
+        unit_type: UnitType,
+    ) -> Result<usize, ParseError> {
+        // 如果该文件已解析过，则直接返回id
+        if UnitManager::contains_path(path) {
+            let unit = UnitManager::get_unit_with_path(path).unwrap();
+            let unit = unit.lock().unwrap();
+            return Ok(unit.unit_id());
+        }
+
         let mut unit: T = T::default();
         let mut unit_base = BaseUnit::default();
         //设置unit类型标记
         unit_base.set_unit_type(unit_type);
 
-        let reader = UnitParser::get_unit_reader(path, unit_type)?;
+        let reader = UnitParser::get_reader(path, unit_type)?;
 
         //用于记录当前段的类型
         let mut segment = Segment::None;
@@ -232,7 +266,11 @@ impl UnitParser {
             }
             if segment == Segment::None {
                 //未找到段名则不能继续匹配
-                return Err(ParseError::new(ParseErrorType::ESyntaxError, path.to_string(),i + 1));
+                return Err(ParseError::new(
+                    ParseErrorType::ESyntaxError,
+                    path.to_string(),
+                    i + 1,
+                ));
             }
 
             //下面进行属性匹配
@@ -251,23 +289,28 @@ impl UnitParser {
                 break;
             }
             //=号分割后第一个元素为属性，后面的均为值，若一行出现两个等号则是语法错误
-            let (attr_str,val_str) = match line.find('=') {
-                Some(idx) => {
-                    (line[..idx].trim(), line[idx+1..].trim())
-                }
+            let (attr_str, val_str) = match line.find('=') {
+                Some(idx) => (line[..idx].trim(), line[idx + 1..].trim()),
                 None => {
-                    return Err(ParseError::new(ParseErrorType::ESyntaxError, path.to_string(),i + 1));
+                    return Err(ParseError::new(
+                        ParseErrorType::ESyntaxError,
+                        path.to_string(),
+                        i + 1,
+                    ));
                 }
             };
             //首先匹配所有unit文件都有的unit段和install段
             if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {
                 if segment != Segment::Unit {
-                    return Err(ParseError::new(ParseErrorType::EINVAL, path.to_string(),i + 1));
+                    return Err(ParseError::new(
+                        ParseErrorType::EINVAL,
+                        path.to_string(),
+                        i + 1,
+                    ));
                 }
-                if let Err(e) = unit_base.set_unit_part_attr(
-                    BASE_UNIT_ATTR_TABLE.get(attr_str).unwrap(),
-                    val_str,
-                ){
+                if let Err(e) = unit_base
+                    .set_unit_part_attr(BASE_UNIT_ATTR_TABLE.get(attr_str).unwrap(), val_str)
+                {
                     let mut e = e.clone();
                     e.set_file(path);
                     e.set_linenum(i + 1);
@@ -275,19 +318,22 @@ impl UnitParser {
                 }
             } else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {
                 if segment != Segment::Install {
-                    return Err(ParseError::new(ParseErrorType::EINVAL, path.to_string(),i + 1));
+                    return Err(ParseError::new(
+                        ParseErrorType::EINVAL,
+                        path.to_string(),
+                        i + 1,
+                    ));
                 }
-                if let Err(e) = unit_base.set_install_part_attr(
-                    INSTALL_UNIT_ATTR_TABLE.get(attr_str).unwrap(),
-                    val_str,
-                ){
+                if let Err(e) = unit_base
+                    .set_install_part_attr(INSTALL_UNIT_ATTR_TABLE.get(attr_str).unwrap(), val_str)
+                {
                     let mut e = e.clone();
                     e.set_file(path);
                     e.set_linenum(i + 1);
                     return Err(e);
                 }
             } else {
-                if let Err(e) = unit.set_attr(segment, attr_str, val_str){
+                if let Err(e) = unit.set_attr(segment, attr_str, val_str) {
                     let mut e = e.clone();
                     e.set_file(path);
                     e.set_linenum(i + 1);
@@ -297,6 +343,11 @@ impl UnitParser {
             i += 1;
         }
         unit.set_unit_base(unit_base);
-        return Ok(Rc::new(unit));
+        let id = unit.set_unit_id();
+        let dret: Arc<Mutex<dyn Unit>> = Arc::new(Mutex::new(unit));
+        UnitManager::insert_unit_with_id(id, dret);
+        UnitManager::insert_into_path_table(path, id);
+
+        return Ok(id);
     }
 }

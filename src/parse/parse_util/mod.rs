@@ -1,8 +1,8 @@
 use crate::{
     contants::{AF_INET, AF_INET6, IPV4_MIN_MTU, IPV6_MIN_MTU, PRIO_MAX, PRIO_MIN},
-    error::{ParseError, ParseErrorType},
+    error::{parse_error::ParseError, parse_error::ParseErrorType},
     task::cmdtask::CmdTask,
-    unit::{Unit, Url},
+    unit::{service::ServiceUnit, target::TargetUnit, Unit, UnitType, Url},
     FileDescriptor,
 };
 
@@ -10,13 +10,13 @@ use crate::{
 use drstd as std;
 
 use std::{
-    format, fs, path::Path, print, println, rc::Rc, string::String, string::ToString, vec, vec::Vec, os::unix::prelude::PermissionsExt,
+    any::Any, format, fs, io::BufRead, os::unix::prelude::PermissionsExt, path::Path, print,
+    println, string::String, string::ToString, sync::Arc, vec, vec::Vec,
 };
 
-use std::os::unix::fs::MetadataExt;
-
 use super::{
-    parse_service::ServiceParser, parse_target::TargetParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE,
+    parse_service::ServiceParser, parse_target::TargetParser, UnitParser, BASE_IEC, BASE_SI,
+    SEC_UNIT_TABLE,
 };
 
 #[derive(PartialEq)]
@@ -430,19 +430,19 @@ impl UnitParseUtil {
     ///
     /// @param path 需解析的文件
     ///
-    /// @return 解析成功则返回Ok(Rc<dyn Unit>)，否则返回Err
-    pub fn parse_unit<T: Unit>(path: &str) -> Result<Rc<T>, ParseError> {
+    /// @return 解析成功则返回Ok(Arc<dyn Unit>)，否则返回Err
+    pub fn parse_unit<T: Unit>(path: &str) -> Result<usize, ParseError> {
         return T::from_path(path);
     }
 
-    /// @brief 将对应的str解析为Rc<dyn Unit>
+    /// @brief 将对应的str解析为Arc<dyn Unit>
     ///
-    /// 将传入的字符串解析为Rc<dyn Unit>，解析失败返回错误
+    /// 将传入的字符串解析为Arc<dyn Unit>，解析失败返回错误
     ///
     /// @param path 需解析的文件
     ///
-    /// @return 解析成功则返回Ok(Rc<dyn Unit>)，否则返回Err
-    pub fn parse_unit_no_type(path: &str) -> Result<Rc<dyn Unit>, ParseError> {
+    /// @return 解析成功则返回Ok(Arc<dyn Unit>)，否则返回Err
+    pub fn parse_unit_no_type(path: &str) -> Result<usize, ParseError> {
         let idx = match path.rfind('.') {
             Some(val) => val,
             None => {
@@ -458,16 +458,25 @@ impl UnitParseUtil {
         let suffix = &path[idx + 1..];
 
         //通过文件后缀分发给不同类型的Unit解析器解析
-        let unit: Rc<dyn Unit> = match suffix {
+        let unit = match suffix {
             //TODO: 目前为递归，后续应考虑从DragonReach管理的Unit表中寻找是否有该Unit，并且通过记录消除递归
-            "service" => ServiceParser::parse(path)?,
-            "target" => TargetParser::parse(path)?,
+            "service" => UnitParser::parse::<ServiceUnit>(path, UnitType::Service)?,
+            "target" => UnitParser::parse::<TargetUnit>(path, UnitType::Target)?,
             _ => {
                 return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
         };
 
         return Ok(unit);
+    }
+
+    pub fn parse_env(s: &str) -> Result<(String, String), ParseError> {
+        let s = s.trim().split('=').collect::<Vec<&str>>();
+        if s.len() != 2 {
+            return Err(ParseError::new(ParseErrorType::EINVAL, "".to_string(), 0));
+        }
+
+        return Ok((s[0].to_string(), s[1].to_string()));
     }
 
     /// @brief 将对应的str解析为对应CmdTask
@@ -485,37 +494,37 @@ impl UnitParseUtil {
         while i < cmds.len() {
             let mut cmd_task = CmdTask {
                 path: String::new(),
-                cmd: String::new(),
+                cmd: Vec::new(),
                 ignore: false,
             };
             //匹配到这里时，这个单词肯定是路径，若路径以-开头则设置ignore
             cmd_task.ignore = cmds[i].starts_with('-');
 
             //获取到一个CmdTask的路径部分
-            let mut path = "";
+            let mut path = String::new();
             if cmd_task.ignore {
-                path = &cmds[i][1..];
+                path = String::from(&cmds[i][1..]);
             } else {
-                path = &cmds[i];
+                path = String::from(cmds[i]);
             }
 
             //得到的非绝对路径则不符合语法要求，报错
-            if !UnitParseUtil::is_valid_exec_path(path) {
+            if !UnitParseUtil::is_valid_exec_path(path.as_str()) {
                 return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
             }
 
-            cmd_task.path = String::from(path);
+            cmd_task.path = path;
 
             //i += 1,继续匹配下一个单词
             i += 1;
-            let mut cmd_str = String::new();
+            let mut cmd_vec = Vec::new();
             while i < cmds.len() && !UnitParseUtil::is_valid_exec_path(cmds[i]) {
                 //命令可能会有多个单词，将多个命令整理成一个
                 let cmd = cmds[i];
-                cmd_str = format!("{} {}", cmd_str, cmd);
+                cmd_vec.push(String::from(cmd));
                 i += 1;
             }
-            cmd_task.cmd = cmd_str;
+            cmd_task.cmd = cmd_vec;
             tasks.push(cmd_task);
             //经过while到这里之后，cmds[i]对应的单词一点是路径，i不需要加一
         }
@@ -525,15 +534,13 @@ impl UnitParseUtil {
     /// @brief 判断是否为绝对路径,以及指向是否为可执行文件或者sh脚本
     ///
     /// 目前该方法仅判断是否为绝对路径
-    /// 
+    ///
     /// @param path 路径
     ///
     /// @return 解析成功则返回true，否则返回false
     pub fn is_valid_exec_path(path: &str) -> bool {
-        if !path.starts_with("/"){
-            return false;
-        }
-        return true;
+        let path = Path::new(path);
+        return path.is_absolute();
 
         //TODO: 后续应判断该文件是否为合法文件
         //let path = Path::new(path);
@@ -541,10 +548,10 @@ impl UnitParseUtil {
     }
 
     pub fn is_valid_file(path: &str) -> bool {
-        if !path.starts_with("/"){
+        if !path.starts_with("/") {
             return false;
         }
-        
+
         let path = Path::new(path);
         if let Ok(matadata) = fs::metadata(path) {
             return matadata.is_file();
@@ -556,7 +563,7 @@ impl UnitParseUtil {
     fn is_executable_file(path: &Path) -> bool {
         if let Ok(metadata) = fs::metadata(path) {
             // 检查文件类型是否是普通文件并且具有可执行权限
-            if metadata.is_file(){
+            if metadata.is_file() {
                 let permissions = metadata.permissions().mode();
                 return permissions & 0o111 != 0;
             }
@@ -686,5 +693,32 @@ impl UnitParseUtil {
             return false;
         }
         return false;
+    }
+
+    pub fn parse_type(path: &str) -> UnitType {
+        if let Some(index) = path.rfind('.') {
+            let result = &path[index + 1..];
+            match result {
+                "service" => return UnitType::Service,
+                "target" => return UnitType::Target,
+                //TODO: 添加文件类型
+                _ => return UnitType::Unknown,
+            }
+        }
+        UnitType::Unknown
+    }
+
+    pub fn parse_environment_file(env_file: &str) -> Result<Vec<(String, String)>, ParseError> {
+        let mut envs = Vec::new();
+        if env_file.len() > 0 {
+            let env_reader = UnitParser::get_reader(env_file, UnitType::Unknown)?;
+            for line in env_reader.lines() {
+                if let Ok(line) = line {
+                    let x = UnitParseUtil::parse_env(line.as_str())?;
+                    envs.push(x);
+                }
+            }
+        }
+        return Ok(envs);
     }
 }
