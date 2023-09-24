@@ -13,3 +13,6 @@ install:
 
 build-linux:
 	cargo -Z build-std=core,alloc,compiler_builtins build --target x86_64-unknown-linux-gnu
+
+clean:
+	cargo clean
