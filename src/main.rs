@@ -88,7 +88,6 @@ fn main() {
     // 启动完服务后进入主循环
     loop {
         // 检查各服务运行状态
-        //eprintln!(".");
         Manager::check_running_status();
     }
 }
