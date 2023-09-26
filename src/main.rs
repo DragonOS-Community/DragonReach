@@ -1,6 +1,7 @@
-#![no_std]
-#![no_main]
+// #![no_std]
+// #![no_main]
 #![feature(slice_pattern)]
+#![feature(fn_traits)]
 
 use cfg_if::cfg_if;
 
@@ -19,9 +20,9 @@ mod executor;
 mod manager;
 mod parse;
 mod task;
+mod time;
 mod unit;
 
-use crate::unit::service;
 use std::eprint;
 use std::eprintln;
 use std::fs;
@@ -29,9 +30,7 @@ use std::print;
 use std::println;
 use std::string::{String, ToString};
 use std::vec::Vec;
-use unit::service::ServiceUnit;
 
-use self::unit::Unit;
 use error::ErrorFormat;
 
 pub struct FileDescriptor(usize);
@@ -41,6 +40,7 @@ const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
 #[cfg(target_os = "dragonos")]
 #[no_mangle]
 fn main() {
+    use manager::timer_manager::TimerManager;
     use parse::UnitParser;
 
     use crate::{
@@ -76,8 +76,7 @@ fn main() {
         };
 
         if id != 0 {
-            let unit = UnitManager::get_unit_with_id(&id).unwrap();
-            if let Err(e) = Executor::exec(&unit) {
+            if let Err(e) = Executor::exec(id) {
                 eprintln!("Err:{}", e.error_format());
             } else {
                 println!("Service {} startup success...", id);
@@ -89,18 +88,26 @@ fn main() {
     loop {
         // 检查各服务运行状态
         Manager::check_running_status();
+        // 检查cmd进程状态
+        Manager::check_cmd_proc();
+        // 检查计时器任务
+        TimerManager::check_timer();
     }
 }
 
 #[cfg(not(target_os = "dragonos"))]
 fn main() {
-    use std::time::Instant;
+    use std::{
+        os::{fd::AsFd, unix::prelude::OpenOptionsExt},
+        process::{Command, Stdio},
+        time::Instant,
+    };
 
     use parse::UnitParser;
 
     use crate::{
-        executor::Executor,
-        manager::{Manager, UnitManager},
+        executor::{service_executor::ServiceExecutor, Executor},
+        manager::{timer_manager::TimerManager, Manager, UnitManager},
         parse::parse_util::UnitParseUtil,
     };
 
@@ -119,8 +126,11 @@ fn main() {
             }
         }
     }
-  
+
     units_file_name.push("/home/heyicong/DragonReach/parse_test/test.service".to_string());
+
+    // 完善unit之间依赖关系
+    UnitManager::init_units_dependencies();
 
     //启动服务
     for path in units_file_name {
@@ -134,21 +144,21 @@ fn main() {
 
         if id != 0 {
             let unit = UnitManager::get_unit_with_id(&id).unwrap();
-            if let Err(e) = Executor::exec(&unit) {
+            if let Err(e) = Executor::exec(id) {
                 eprintln!("Err:{}", e.error_format());
             }
         }
     }
 
+    println!("\x1b[41,5,1mERROR\x1b[0m");
+
     // 启动完服务后进入主循环
     loop {
-        let time = Instant::now();
-
         // 检查各服务运行状态
         Manager::check_running_status();
-        //println!(".");
 
-        let t = time.elapsed().as_micros();
-        //println!("{}",t);
+        Manager::check_cmd_proc();
+
+        TimerManager::check_timer();
     }
 }

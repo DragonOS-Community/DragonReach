@@ -57,6 +57,14 @@ impl Unit for TargetUnit {
     fn mut_unit_base(&mut self) -> &mut BaseUnit {
         return &mut self.unit_base;
     }
+
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn exit(&mut self) {
+        todo!()
+    }
 }
 
 unsafe impl Sync for TargetUnit {}

@@ -107,11 +107,12 @@ impl Graph {
         }
     }
 
+    // TODO: 完善这里，目前还是可能会有循环依赖的问题，因为目前只判断了After字段，其他字段也有可能导致循环依赖问题
     pub fn construct_graph(unit: String) -> Result<Graph, ParseError> {
         //计算整个依赖图中的节点数
         let mut node_num = 1;
         let mut dep = Vec::new();
-        Self::get_node_num(&unit, &mut dep, &mut node_num);
+        Self::get_node_num(&unit, &mut dep, &mut node_num)?;
 
         let mut graph: Graph = Graph::new();
         graph.max_edge = node_num * (node_num - 1);

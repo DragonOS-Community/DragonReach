@@ -50,6 +50,8 @@ pub trait Unit: Sync + Send + Debug {
 
     fn as_any(&self) -> &dyn Any;
 
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+
     /// @brief 设置Unit属性
     ///
     /// 设置对应Unit属性
@@ -99,6 +101,12 @@ pub trait Unit: Sync + Send + Debug {
     ///
     /// 一般只有可运行的Unit(如Service)需要重写此函数
     fn after_exit(&mut self, exit_status: ExitStatus) {}
+
+    /// ## 初始化Unit内任务的一些参数，各个Unit所需处理的不相同，故放在总的Unit trait
+    fn init(&mut self) {}
+
+    /// ## Unit的显式退出逻辑
+    fn exit(&mut self);
 }
 
 //Unit状态
@@ -183,6 +191,10 @@ impl BaseUnit {
         &self.unit_part
     }
 
+    pub fn mut_unit_part(&mut self) -> &mut UnitPart {
+        &mut self.unit_part
+    }
+
     pub fn install_part(&self) -> &InstallPart {
         &self.install_part
     }
@@ -213,16 +225,28 @@ pub struct Url {
 //对应Unit文件的Unit段
 #[derive(Debug, Clone)]
 pub struct UnitPart {
+    // Unit描述
     description: String,
+    // Unit文档
     documentation: Vec<Url>,
+    // 依赖项，同时与当前Unit启动，任意一个失败，终止该Unit的启动
     requires: Vec<usize>,
+    // 依赖项，同时与当前Unit启动，不需要考虑其成功与否
     wants: Vec<usize>,
+    // 该Unit在下列Units启动完成之后才能启动
     after: Vec<usize>,
+    // after相反的语义
     before: Vec<usize>,
+    // 与requires类似，但是这些模块任意一个意外结束或者重启时，该Unit也会终止或重启
     binds_to: Vec<usize>,
+    // 与binds_to类似，但是不会随着当前Unit启动而启动
     part_of: Vec<usize>,
+    // 启动失败时，需启动的项
     on_failure: Vec<usize>,
+    // 与当前Unit冲突项
     conflicts: Vec<usize>,
+    // 与当前Unit绑定的项，当前Unit失败或者重启时这些项也会跟着终止或重启
+    be_binded_by: Vec<usize>,
 }
 
 impl Default for UnitPart {
@@ -238,6 +262,7 @@ impl Default for UnitPart {
             part_of: Vec::new(),
             on_failure: Vec::new(),
             conflicts: Vec::new(),
+            be_binded_by: Vec::new(),
         }
     }
 }
@@ -362,6 +387,22 @@ impl UnitPart {
 
     pub fn conflicts(&self) -> &[usize] {
         &self.conflicts
+    }
+
+    pub fn be_binded_by(&self) -> &[usize] {
+        &self.be_binded_by
+    }
+
+    pub fn push_be_binded_by(&mut self, id: usize) {
+        if !self.be_binded_by.contains(&id) {
+            self.be_binded_by.push(id);
+        }
+    }
+
+    pub fn push_after_unit(&mut self, id: usize) {
+        if !self.after.contains(&id) {
+            self.after.push(id);
+        }
     }
 }
 

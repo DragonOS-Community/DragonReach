@@ -7,6 +7,8 @@ use std::{
     process::Child,
     sync::{Arc, Mutex, RwLock},
     vec::Vec,
+    print,
+    println
 };
 
 use crate::unit::service::ServiceUnit;
@@ -28,43 +30,23 @@ lazy_static! {
     static ref PATH_TO_UNIT_MAP: RwLock<HashMap<u64,usize>> = RwLock::new(HashMap::new());
 
     // 全局运行中的Unit表
-    pub(super) static ref RUNNING_TABLE: RwLock<RunningTableManager> = RwLock::new(RunningTableManager { running_table: Vec::new() });
+    pub(super) static ref RUNNING_TABLE: RwLock<RunningTableManager> = RwLock::new(RunningTableManager { running_table: HashMap::new() });
 
     // CMD进程表，用于处理Unit的CMD派生进程(ExecStartPre等命令派生进程)
     pub(super) static ref CMD_PROCESS_TABLE: RwLock<HashMap<u32,Mutex<Child>>> = RwLock::new(HashMap::new());
 }
 
 pub struct RunningTableManager {
-    running_table: Vec<RunningUnit>,
+    running_table: HashMap<usize,Child>,
 }
 
-impl<'a> IntoIterator for &'a mut RunningTableManager {
-    type Item = &'a mut RunningUnit;
-    type IntoIter = std::slice::IterMut<'a, RunningUnit>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.running_table.iter_mut()
-    }
-}
-
-pub struct RunningUnit {
-    process: Child,
-    unit_id: usize,
-}
-impl RunningUnit {
-    pub fn new(p: Child, unit: usize) -> Self {
-        RunningUnit {
-            process: p,
-            unit_id: unit,
-        }
+impl RunningTableManager {
+    pub fn running_table(&self) -> &HashMap<usize,Child>{
+        &self.running_table
     }
 
-    pub fn child(&mut self) -> &mut Child {
-        &mut self.process
-    }
-
-    pub fn id(&self) -> &usize {
-        &self.unit_id
+    pub fn mut_running_table(&mut self) -> &mut HashMap<usize,Child>{
+        &mut self.running_table
     }
 }
 
@@ -73,6 +55,7 @@ pub struct UnitManager;
 unsafe impl Sync for UnitManager {}
 
 impl UnitManager {
+    /// 插入一条path到unit_id的映射
     pub fn insert_into_path_table(path: &str, unit: usize) {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
@@ -80,6 +63,7 @@ impl UnitManager {
         PATH_TO_UNIT_MAP.write().unwrap().insert(hash, unit);
     }
 
+    // 判断当前是否已经有了对应path的Unit
     pub fn contains_path(path: &str) -> bool {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
@@ -87,6 +71,7 @@ impl UnitManager {
         PATH_TO_UNIT_MAP.read().unwrap().contains_key(&hash)
     }
 
+    // 通过path获取到Unit
     pub fn get_unit_with_path(path: &str) -> Option<Arc<Mutex<dyn Unit>>> {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
@@ -104,12 +89,14 @@ impl UnitManager {
         ret
     }
 
+    // 通过unit_id获取Unit
     pub fn get_unit_with_id(id: &usize) -> Option<Arc<Mutex<dyn Unit>>> {
         let map = ID_TO_UNIT_MAP.read().unwrap();
         let ret = map.get(&id).cloned();
         ret
     }
 
+    // 通过id获取到path
     pub fn get_id_with_path(path: &str) -> Option<usize> {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
@@ -117,31 +104,34 @@ impl UnitManager {
         PATH_TO_UNIT_MAP.read().unwrap().get(&hash).cloned()
     }
 
+    // 判断该Unit是否正在运行中
     pub fn is_running_unit(id: &usize) -> bool {
-        !RUNNING_TABLE
+        RUNNING_TABLE
             .read()
             .unwrap()
             .running_table
-            .iter()
-            .filter(|x| x.unit_id == *id)
-            .collect::<Vec<_>>()
-            .is_empty()
+            .contains_key(id)
+            || !FLAG_RUNNING
+                .read()
+                .unwrap()
+                .iter()
+                .filter(|x| **x == *id)
+                .collect::<Vec<_>>()
+                .is_empty()
     }
 
-    pub fn push_running(unit: RunningUnit) {
-        RUNNING_TABLE.write().unwrap().running_table.push(unit);
+    // 向运行表中添加运行的Unit
+    pub fn push_running(unit_id: usize,p: Child) {
+        RUNNING_TABLE.write().unwrap().running_table.insert(unit_id,p);
     }
 
+    // 删除运行表中的Unit
     pub fn remove_running(id: usize) {
         let mut table = RUNNING_TABLE.write().unwrap();
-        match table.running_table.iter().position(|x| x.unit_id == id) {
-            Some(idx) => {
-                table.running_table.remove(idx);
-            }
-            _ => (),
-        }
+        table.running_table.remove(&id);
     }
 
+    // 向id到Unit映射表中插入数据
     pub fn insert_unit_with_id(id: usize, unit: Arc<Mutex<dyn Unit>>) {
         let mut map = ID_TO_UNIT_MAP.write().unwrap();
         if !map.contains_key(&id) {
@@ -149,10 +139,12 @@ impl UnitManager {
         }
     }
 
+    // 判断当前DragonReach是否拥有目标id的Unit
     pub fn contains_id(id: &usize) -> bool {
         ID_TO_UNIT_MAP.read().unwrap().contains_key(id)
     }
 
+    // 弹出一个处于IDLE状态的Service
     pub fn pop_a_idle_service() -> Option<Arc<Mutex<dyn Unit>>> {
         let id = IDLE_SERVIEC_DEQUE.lock().unwrap().pop_front();
         match id {
@@ -165,6 +157,7 @@ impl UnitManager {
         }
     }
 
+    // 添加IDLE状态的Service，将在后续调度
     pub fn push_a_idle_service(id: usize) {
         if !Self::contains_id(&id) {
             return;
@@ -172,6 +165,7 @@ impl UnitManager {
         IDLE_SERVIEC_DEQUE.lock().unwrap().push_back(id);
     }
 
+    // 将该Unit标记为运行状态，并且后续不会对其进行运行检查
     pub fn push_flag_running(id: usize) {
         let mut t = FLAG_RUNNING.write().unwrap();
         if t.contains(&id) {
@@ -180,10 +174,12 @@ impl UnitManager {
         t.push(id);
     }
 
+    // 当前运行的Unit数
     pub fn running_count() -> usize {
         return RUNNING_TABLE.read().unwrap().running_table.len();
     }
 
+    // 向Cmd运行表中添加
     pub fn push_cmd_proc(proc: Child) {
         CMD_PROCESS_TABLE
             .write()
@@ -191,7 +187,60 @@ impl UnitManager {
             .insert(proc.id(), Mutex::new(proc));
     }
 
+    // 删除对应cmd的进程
     pub fn remove_cmd_proc(id: u32) {
         CMD_PROCESS_TABLE.write().unwrap().remove(&id);
+    }
+
+    // 弹出指定id的cmd进程
+    pub fn pop_cmd_proc(id: u32) -> Option<Mutex<Child>> {
+        CMD_PROCESS_TABLE.write().unwrap().remove(&id)
+    }
+
+    // 初始化各Unit的依赖关系，此方法只需在解析完系统Unit文件后调用一次
+    pub fn init_units_dependencies() {
+        let mut manager = ID_TO_UNIT_MAP.write().unwrap();
+
+        // 处理before段，将before段的Unit添加此Unit为After
+        for (id, unit) in manager.iter() {
+            let mut unit = unit.lock().unwrap();
+            let before = unit.mut_unit_base().unit_part().before();
+            for rid in before {
+                let req = UnitManager::get_unit_with_id(rid).unwrap();
+                let mut req = req.lock().unwrap();
+                req.mut_unit_base().mut_unit_part().push_after_unit(*id);
+            }
+        }
+
+        for (id, unit) in manager.iter() {
+            let mut unit = unit.lock().unwrap();
+
+            // 处理binds_to段
+            let binds_to = unit.mut_unit_base().unit_part().binds_to();
+            for rid in binds_to {
+                let req = UnitManager::get_unit_with_id(rid).unwrap();
+                let mut req = req.lock().unwrap();
+                req.mut_unit_base().mut_unit_part().push_be_binded_by(*id);
+            }
+
+            // 处理part_of段
+            let part_of = unit.mut_unit_base().unit_part().part_of();
+            for rid in part_of {
+                let req = UnitManager::get_unit_with_id(rid).unwrap();
+                let mut req = req.lock().unwrap();
+                req.mut_unit_base().mut_unit_part().push_be_binded_by(*id);
+            }
+        }
+    }
+
+    /// ## 杀死Unit进程 
+    pub fn kill_running(id: usize) {
+        if Self::is_running_unit(&id) {
+            let mut running_manager = RUNNING_TABLE.write().unwrap();
+            let unit = running_manager.running_table.get_mut(&id).unwrap();
+            let _ = unit.kill();
+            println!("kill:{}",id);
+            running_manager.running_table.remove(&id);
+        }
     }
 }

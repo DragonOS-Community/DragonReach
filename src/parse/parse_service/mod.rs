@@ -27,7 +27,7 @@ impl ServiceParser {
         let mut graph = Graph::construct_graph(path.to_string())?;
         let ret = graph.topological_sort()?;
         for p in ret {
-            let temp_unit = UnitParseUtil::parse_unit_no_type(&p)?;
+            UnitParseUtil::parse_unit_no_type(&p)?;
         }
 
         let result = UnitManager::get_id_with_path(path).unwrap();

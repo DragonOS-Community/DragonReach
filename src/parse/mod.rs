@@ -288,7 +288,7 @@ impl UnitParser {
                 i += 1;
                 break;
             }
-            //=号分割后第一个元素为属性，后面的均为值，若一行出现两个等号则是语法错误
+            //=号分割后第一个元素为属性，后面的均为值
             let (attr_str, val_str) = match line.find('=') {
                 Some(idx) => (line[..idx].trim(), line[idx + 1..].trim()),
                 None => {
@@ -344,6 +344,7 @@ impl UnitParser {
         }
         unit.set_unit_base(unit_base);
         let id = unit.set_unit_id();
+        unit.init();
         let dret: Arc<Mutex<dyn Unit>> = Arc::new(Mutex::new(unit));
         UnitManager::insert_unit_with_id(id, dret);
         UnitManager::insert_into_path_table(path, id);

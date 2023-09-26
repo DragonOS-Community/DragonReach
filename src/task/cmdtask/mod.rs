@@ -5,7 +5,7 @@ use std::{
     eprint, eprintln, print, println,
     process::{Child, Command},
     string::String,
-    vec::Vec,
+    vec::Vec, os::unix::process::CommandExt,
 };
 
 use crate::{
@@ -18,14 +18,17 @@ pub struct CmdTask {
     pub path: String,
     pub cmd: Vec<String>,
     pub ignore: bool, //表示忽略这个命令的错误，即使它运行失败也不影响unit正常运作
+    pub dir: String,
+    pub envs: Vec<(String,String)>,
+    pub pid: u32
 }
 
 impl CmdTask {
-    pub fn spawn(&self, dir: String, envs: &[(String, String)]) -> Result<(), RuntimeError> {
+    pub fn spawn(&self) -> Result<(), RuntimeError> {
         let result = Command::new(&self.path)
             .args(&self.cmd)
-            .current_dir(dir)
-            .envs(Vec::from(envs))
+            .current_dir(self.dir.clone())
+            .envs(self.envs.clone())
             .spawn();
         match result {
             Ok(proc) => {
@@ -41,11 +44,11 @@ impl CmdTask {
         Ok(())
     }
 
-    pub fn no_spawn(&self, dir: String, envs: &[(String, String)]) -> Result<(), RuntimeError> {
+    pub fn no_spawn(&self) -> Result<(), RuntimeError> {
         let result = Command::new(&self.path)
             .args(&self.cmd)
-            .current_dir(dir)
-            .envs(Vec::from(envs))
+            .current_dir(self.dir.clone())
+            .envs(self.envs.clone())
             .output();
         match result {
             Ok(output) => {
@@ -63,5 +66,22 @@ impl CmdTask {
             }
         }
         Ok(())
+    }
+
+    pub fn stop(&mut self){
+        if self.pid != 0 {
+            let res = UnitManager::pop_cmd_proc(self.pid).unwrap();
+
+            let mut proc = res.lock().unwrap();
+
+            match proc.try_wait() {
+                //进程正常退出
+                Ok(Some(status)) => {}
+                //进程错误退出(或启动失败)
+                _ => {
+                    proc.kill().expect("Cannot kill cmd task");
+                }
+            };
+        }
     }
 }

@@ -492,11 +492,7 @@ impl UnitParseUtil {
         let mut tasks = Vec::new();
         let mut i = 0;
         while i < cmds.len() {
-            let mut cmd_task = CmdTask {
-                path: String::new(),
-                cmd: Vec::new(),
-                ignore: false,
-            };
+            let mut cmd_task = CmdTask::default();
             //匹配到这里时，这个单词肯定是路径，若路径以-开头则设置ignore
             cmd_task.ignore = cmds[i].starts_with('-');
 
