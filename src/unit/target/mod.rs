@@ -2,15 +2,11 @@ use super::{BaseUnit, Unit};
 use crate::error::parse_error::ParseError;
 use crate::parse::parse_target::TargetParser;
 use crate::parse::Segment;
-use cfg_if::cfg_if;
-use core::ops::Deref;
-use core::result::Result::{self, Err, Ok};
+
+use core::result::Result::{self, Ok};
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 use std::marker::{Send, Sized, Sync};
-use std::rc::Rc;
-use std::sync::Arc;
-use std::vec::Vec;
 
 #[derive(Debug, Clone, Default)]
 pub struct TargetUnit {
@@ -30,7 +26,7 @@ impl Unit for TargetUnit {
         return TargetParser::parse(path);
     }
 
-    fn set_attr(&mut self, segement: Segment, attr: &str, val: &str) -> Result<(), ParseError> {
+    fn set_attr(&mut self, _segement: Segment, _attr: &str, _val: &str) -> Result<(), ParseError> {
         Ok(())
     }
 

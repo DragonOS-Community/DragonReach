@@ -1,13 +1,11 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
-use std::fs::File;
-use std::{eprint, eprintln, os::fd::AsFd, print, println, process::Child, vec::Vec};
+
+use std::{eprint, eprintln, print, println, vec::Vec};
 
 pub mod timer_manager;
 pub mod unit_manager;
 
-use std::io::Read;
-use std::os::unix::io::{AsRawFd, FromRawFd};
 pub use unit_manager::*;
 
 use crate::executor::ExitStatus;
@@ -30,10 +28,7 @@ impl Manager {
                     //TODO:交付给相应类型的Unit类型去执行退出后的逻辑
                     println!("Service exited success");
 
-                    exited_unit.push((
-                        *unit.0,
-                        ExitStatus::from_exit_code(status.code().unwrap()),
-                    ));
+                    exited_unit.push((*unit.0, ExitStatus::from_exit_code(status.code().unwrap())));
                 }
                 //进程错误退出(或启动失败)
                 Err(e) => {
@@ -74,7 +69,7 @@ impl Manager {
         }
     }
 
-    // 检查当前所有cmd进程的运行状态
+    /// ## 检查当前所有cmd进程的运行状态
     pub fn check_cmd_proc() {
         let mut exited = Vec::new();
         let mut table = CMD_PROCESS_TABLE.write().unwrap();
@@ -82,7 +77,7 @@ impl Manager {
             let mut proc = tuple.1.lock().unwrap();
             match proc.try_wait() {
                 // 正常运行
-                Ok(None) => {},
+                Ok(None) => {}
                 // 停止运行，从表中删除数据
                 _ => {
                     // TODO: 应该添加错误处理，有一些命令执行失败会影响服务正常运行
@@ -92,7 +87,7 @@ impl Manager {
             }
         }
 
-        for id in exited{
+        for id in exited {
             table.remove(&id);
         }
     }

@@ -2,10 +2,7 @@
 use drstd as std;
 
 use crate::{
-    error::{
-        runtime_error::{RuntimeError, RuntimeErrorType},
-        ErrorFormat,
-    },
+    error::runtime_error::{RuntimeError, RuntimeErrorType},
     manager::{timer_manager::TimerManager, UnitManager},
     parse::Segment,
     unit::{
@@ -13,22 +10,21 @@ use crate::{
         Unit, UnitState,
     },
 };
-use std::sync::Mutex;
-use std::vec::Vec;
-use std::{
-    eprint, eprintln,
-    print, println,
-};
+
 use std::process::Command;
+use std::process::Stdio;
 use std::time::Duration;
-use std::{process::Stdio, string::ToString};
+use std::vec::Vec;
+use std::{eprint, eprintln, print, println};
 
 use super::{Executor, ExitStatus};
 
 pub struct ServiceExecutor;
 
 impl ServiceExecutor {
+    /// ## Service执行器
     pub fn exec(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
+        // 通过服务启动类型分发
         match *service.service_part().service_type() {
             ServiceType::Simple => return Self::exec_simple(service),
             ServiceType::Forking => return Self::exec_forking(service),
@@ -38,6 +34,7 @@ impl ServiceExecutor {
             ServiceType::OneShot => return Self::exec_one_shot(service),
         };
     }
+
     pub fn exec_simple(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         //处理conflict
         let conflicts = service.unit_base().unit_part().conflicts();
@@ -56,7 +53,6 @@ impl ServiceExecutor {
 
         //获取启动命令
         let exec_start = service.service_part().exec_start();
-        println!("exec:{}", exec_start.path);
 
         //TODO:设置uid与gid
 
@@ -80,7 +76,7 @@ impl ServiceExecutor {
                 //修改service状态
                 service.mut_unit_base().set_state(UnitState::Enabled);
                 //启动成功后将Child加入全局管理的进程表
-                UnitManager::push_running(service.unit_id(),p);
+                UnitManager::push_running(service.unit_id(), p);
                 //执行启动后命令
                 Self::exec_start_pos(service)?;
             }
@@ -92,11 +88,11 @@ impl ServiceExecutor {
         Ok(())
     }
 
-    fn exec_dbus(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_dbus(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
-    fn exec_forking(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_forking(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
@@ -108,11 +104,11 @@ impl ServiceExecutor {
         Ok(())
     }
 
-    fn exec_notify(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_notify(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
-    fn exec_one_shot(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_one_shot(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
@@ -158,7 +154,7 @@ impl ServiceExecutor {
         Ok(())
     }
 
-    //服务退出执行的逻辑(包括自然退出及显式退出)
+    /// ## 服务退出执行的逻辑(包括自然退出及显式退出)
     pub fn after_exit(service: &mut ServiceUnit, exit_status: ExitStatus) {
         //TODO: 需要考虑是否需要在此处执行退出后代码，还是只需要显式退出时才执行
         let _ = Self::exec_stop_post(service);
@@ -219,6 +215,7 @@ impl ServiceExecutor {
         service.mut_unit_base().set_state(UnitState::Disabled);
     }
 
+    /// ## 显示退出Service
     pub fn exit(service: &mut ServiceUnit) {
         // TODO: 打印日志
         let _ = Self::exec_stop(service);
@@ -227,12 +224,16 @@ impl ServiceExecutor {
         let id = service.unit_id();
         if ns != 0 {
             // 计时器触发后若服务还未停止，则kill掉进程
-            TimerManager::push_timer(Duration::from_nanos(ns), move || {
-                if UnitManager::is_running_unit(&id) {
-                    UnitManager::kill_running(id);
-                }
-                Ok(())
-            }, service.unit_id())
+            TimerManager::push_timer(
+                Duration::from_nanos(ns),
+                move || {
+                    if UnitManager::is_running_unit(&id) {
+                        UnitManager::kill_running(id);
+                    }
+                    Ok(())
+                },
+                service.unit_id(),
+            )
         }
     }
 }

@@ -4,16 +4,11 @@ use drstd as std;
 pub mod dep_graph;
 pub mod service_executor;
 
-use std::sync::Arc;
-use std::{process::Child, sync::Mutex};
-
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
     manager::UnitManager,
     unit::Unit,
 };
-
-use self::dep_graph::DepGraph;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExitStatus {
@@ -43,8 +38,10 @@ impl ExitStatus {
 pub struct Executor;
 
 impl Executor {
+    /// ## 全局执行器入口，将会进行启动检测以及循环依赖检测
     pub fn exec(unit_id: usize) -> Result<(), RuntimeError> {
         // TODO: 添加超时检测，这个工作应该在线程执行
+
         match Self::exec_(unit_id) {
             Ok(_) => Ok(()),
             Err(e) => {

@@ -1,34 +1,32 @@
 use crate::error::parse_error::ParseError;
 use crate::error::parse_error::ParseErrorType;
 use crate::error::runtime_error::RuntimeError;
-use crate::error::runtime_error::RuntimeErrorType;
+
 use crate::executor::ExitStatus;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
 
 #[cfg(target_os = "dragonos")]
 use drstd as std;
-use hashbrown::HashMap;
 
 use std::any::Any;
 use std::default::Default;
 use std::fmt::Debug;
 use std::marker::{Send, Sized, Sync};
-use std::option::Option::Some;
+
 use std::result::Result;
 use std::result::Result::Err;
 use std::result::Result::Ok;
 use std::string::String;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+
 use std::vec::Vec;
 
 pub mod service;
 pub mod target;
 
 use self::target::TargetUnit;
-use lazy_static::lazy_static;
 
 pub fn generate_unit_id() -> usize {
     static UNIT_ID: AtomicUsize = AtomicUsize::new(1);
@@ -100,7 +98,7 @@ pub trait Unit: Sync + Send + Debug {
     /// ## Unit退出后逻辑
     ///
     /// 一般只有可运行的Unit(如Service)需要重写此函数
-    fn after_exit(&mut self, exit_status: ExitStatus) {}
+    fn after_exit(&mut self, _exit_status: ExitStatus) {}
 
     /// ## 初始化Unit内任务的一些参数，各个Unit所需处理的不相同，故放在总的Unit trait
     fn init(&mut self) {}

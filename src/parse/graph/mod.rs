@@ -2,17 +2,14 @@ use crate::{
     error::parse_error::{ParseError, ParseErrorType},
     unit::UnitType,
 };
-use core::slice::SlicePattern;
+
 #[cfg(target_os = "dragonos")]
 use drstd as std;
+use std::io::BufRead;
 use std::string::{String, ToString};
 use std::vec::Vec;
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-};
 
-use super::{parse_util::UnitParseUtil, UnitParser};
+use super::UnitParser;
 
 pub struct GraphNode {
     value: String,

@@ -1,5 +1,5 @@
 use crate::error::parse_error::ParseErrorType;
-use crate::manager::{self, UnitManager};
+use crate::manager::UnitManager;
 use crate::unit::{BaseUnit, Unit};
 use crate::DRAGON_REACH_UNIT_DIR;
 use crate::{
@@ -236,7 +236,7 @@ impl UnitParser {
         //用于记录当前段的类型
         let mut segment = Segment::None;
         //用于处理多行对应一个属性的情况
-        let mut last_attr = ServiceUnitAttr::None;
+        let _last_attr = ServiceUnitAttr::None;
 
         //一行一行向下解析
         let lines = reader

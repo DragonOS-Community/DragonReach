@@ -1,22 +1,19 @@
 use super::{BaseUnit, Unit};
-use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
+use crate::error::runtime_error::RuntimeError;
 use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
-use crate::executor::ExitStatus;
 use crate::executor::service_executor::ServiceExecutor;
-use crate::manager::UnitManager;
-use crate::parse::graph::Graph;
+use crate::executor::ExitStatus;
+
 use crate::parse::parse_service::ServiceParser;
 use crate::parse::parse_util::UnitParseUtil;
-use crate::parse::{Segment, UnitParser, SERVICE_UNIT_ATTR_TABLE};
+use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
 use crate::task::cmdtask::CmdTask;
 
 #[cfg(target_os = "dragonos")]
 use drstd as std;
-use std::mem::MaybeUninit;
-use std::process::{Child, Command};
-use std::rc::Rc;
-use std::string::{String,ToString};
-use std::sync::Arc;
+
+use std::string::{String, ToString};
+
 use std::vec::Vec;
 #[derive(Clone, Debug)]
 pub struct ServiceUnit {
@@ -191,25 +188,25 @@ impl Unit for ServiceUnit {
 
     fn init(&mut self) {
         let part = &mut self.service_part;
-        for cmd in part.exec_reload.iter_mut(){
+        for cmd in part.exec_reload.iter_mut() {
             cmd.dir = part.working_directory.to_string();
             cmd.envs = part.environment.clone();
         }
         part.exec_start.dir = part.working_directory.to_string();
         part.exec_start.envs = part.environment.clone();
-        for cmd in part.exec_start_pos.iter_mut(){
+        for cmd in part.exec_start_pos.iter_mut() {
             cmd.dir = part.working_directory.to_string();
             cmd.envs = part.environment.clone();
         }
-        for cmd in part.exec_start_pre.iter_mut(){
+        for cmd in part.exec_start_pre.iter_mut() {
             cmd.dir = part.working_directory.to_string();
             cmd.envs = part.environment.clone();
         }
-        for cmd in part.exec_stop.iter_mut(){
+        for cmd in part.exec_stop.iter_mut() {
             cmd.dir = part.working_directory.to_string();
             cmd.envs = part.environment.clone();
         }
-        for cmd in part.exec_stop_post.iter_mut(){
+        for cmd in part.exec_stop_post.iter_mut() {
             cmd.dir = part.working_directory.to_string();
             cmd.envs = part.environment.clone();
         }

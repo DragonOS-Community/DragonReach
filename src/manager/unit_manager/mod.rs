@@ -4,15 +4,13 @@ use std::hash::{Hash, Hasher};
 use std::{
     collections::hash_map::DefaultHasher,
     collections::vec_deque::VecDeque,
+    print, println,
     process::Child,
     sync::{Arc, Mutex, RwLock},
     vec::Vec,
-    print,
-    println
 };
 
-use crate::unit::service::ServiceUnit;
-use crate::unit::{service, Unit};
+use crate::unit::Unit;
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
@@ -37,15 +35,15 @@ lazy_static! {
 }
 
 pub struct RunningTableManager {
-    running_table: HashMap<usize,Child>,
+    running_table: HashMap<usize, Child>,
 }
 
 impl RunningTableManager {
-    pub fn running_table(&self) -> &HashMap<usize,Child>{
+    pub fn running_table(&self) -> &HashMap<usize, Child> {
         &self.running_table
     }
 
-    pub fn mut_running_table(&mut self) -> &mut HashMap<usize,Child>{
+    pub fn mut_running_table(&mut self) -> &mut HashMap<usize, Child> {
         &mut self.running_table
     }
 }
@@ -106,11 +104,7 @@ impl UnitManager {
 
     // 判断该Unit是否正在运行中
     pub fn is_running_unit(id: &usize) -> bool {
-        RUNNING_TABLE
-            .read()
-            .unwrap()
-            .running_table
-            .contains_key(id)
+        RUNNING_TABLE.read().unwrap().running_table.contains_key(id)
             || !FLAG_RUNNING
                 .read()
                 .unwrap()
@@ -121,8 +115,12 @@ impl UnitManager {
     }
 
     // 向运行表中添加运行的Unit
-    pub fn push_running(unit_id: usize,p: Child) {
-        RUNNING_TABLE.write().unwrap().running_table.insert(unit_id,p);
+    pub fn push_running(unit_id: usize, p: Child) {
+        RUNNING_TABLE
+            .write()
+            .unwrap()
+            .running_table
+            .insert(unit_id, p);
     }
 
     // 删除运行表中的Unit
@@ -199,7 +197,7 @@ impl UnitManager {
 
     // 初始化各Unit的依赖关系，此方法只需在解析完系统Unit文件后调用一次
     pub fn init_units_dependencies() {
-        let mut manager = ID_TO_UNIT_MAP.write().unwrap();
+        let manager = ID_TO_UNIT_MAP.write().unwrap();
 
         // 处理before段，将before段的Unit添加此Unit为After
         for (id, unit) in manager.iter() {
@@ -233,13 +231,13 @@ impl UnitManager {
         }
     }
 
-    /// ## 杀死Unit进程 
+    /// ## 杀死Unit进程
     pub fn kill_running(id: usize) {
         if Self::is_running_unit(&id) {
             let mut running_manager = RUNNING_TABLE.write().unwrap();
             let unit = running_manager.running_table.get_mut(&id).unwrap();
             let _ = unit.kill();
-            println!("kill:{}",id);
+            println!("kill:{}", id);
             running_manager.running_table.remove(&id);
         }
     }

@@ -1,5 +1,5 @@
-// #![no_std]
-// #![no_main]
+#![no_std]
+#![no_main]
 #![feature(slice_pattern)]
 #![feature(fn_traits)]
 
@@ -23,12 +23,10 @@ mod task;
 mod time;
 mod unit;
 
-use std::eprint;
-use std::eprintln;
 use std::fs;
-use std::print;
-use std::println;
-use std::string::{String, ToString};
+use std::{eprint, eprintln, print, println};
+
+use std::string::ToString;
 use std::vec::Vec;
 
 use error::ErrorFormat;
@@ -97,18 +95,11 @@ fn main() {
 
 #[cfg(not(target_os = "dragonos"))]
 fn main() {
-    use std::{
-        os::{fd::AsFd, unix::prelude::OpenOptionsExt},
-        process::{Command, Stdio},
-        time::Instant,
-    };
-
     use parse::UnitParser;
 
     use crate::{
-        executor::{service_executor::ServiceExecutor, Executor},
+        executor::Executor,
         manager::{timer_manager::TimerManager, Manager, UnitManager},
-        parse::parse_util::UnitParseUtil,
     };
 
     let mut units_file_name = Vec::new();
@@ -119,7 +110,7 @@ fn main() {
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_file() {
                         let filename = entry.file_name();
-                        let filename = filename.to_str().unwrap();
+                        let _filename = filename.to_str().unwrap();
                         //units_file_name.push(filename.to_string());
                     }
                 }
@@ -143,14 +134,12 @@ fn main() {
         };
 
         if id != 0 {
-            let unit = UnitManager::get_unit_with_id(&id).unwrap();
+            let _unit = UnitManager::get_unit_with_id(&id).unwrap();
             if let Err(e) = Executor::exec(id) {
                 eprintln!("Err:{}", e.error_format());
             }
         }
     }
-
-    println!("\x1b[41,5,1mERROR\x1b[0m");
 
     // 启动完服务后进入主循环
     loop {
