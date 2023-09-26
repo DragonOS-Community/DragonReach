@@ -1,22 +1,19 @@
 use super::{BaseUnit, Unit};
-use crate::error::runtime_error::{RuntimeError, RuntimeErrorType};
+use crate::error::runtime_error::RuntimeError;
 use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
-use crate::executor::ExitStatus;
 use crate::executor::service_executor::ServiceExecutor;
-use crate::manager::UnitManager;
-use crate::parse::graph::Graph;
+use crate::executor::ExitStatus;
+
 use crate::parse::parse_service::ServiceParser;
 use crate::parse::parse_util::UnitParseUtil;
-use crate::parse::{Segment, UnitParser, SERVICE_UNIT_ATTR_TABLE};
+use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
 use crate::task::cmdtask::CmdTask;
 
 #[cfg(target_os = "dragonos")]
 use drstd as std;
-use std::mem::MaybeUninit;
-use std::process::{Child, Command};
-use std::rc::Rc;
-use std::string::String;
-use std::sync::Arc;
+
+use std::string::{String, ToString};
+
 use std::vec::Vec;
 #[derive(Clone, Debug)]
 pub struct ServiceUnit {
@@ -188,6 +185,40 @@ impl Unit for ServiceUnit {
     fn after_exit(&mut self, exit_status: ExitStatus) {
         ServiceExecutor::after_exit(self, exit_status);
     }
+
+    fn init(&mut self) {
+        let part = &mut self.service_part;
+        for cmd in part.exec_reload.iter_mut() {
+            cmd.dir = part.working_directory.to_string();
+            cmd.envs = part.environment.clone();
+        }
+        part.exec_start.dir = part.working_directory.to_string();
+        part.exec_start.envs = part.environment.clone();
+        for cmd in part.exec_start_pos.iter_mut() {
+            cmd.dir = part.working_directory.to_string();
+            cmd.envs = part.environment.clone();
+        }
+        for cmd in part.exec_start_pre.iter_mut() {
+            cmd.dir = part.working_directory.to_string();
+            cmd.envs = part.environment.clone();
+        }
+        for cmd in part.exec_stop.iter_mut() {
+            cmd.dir = part.working_directory.to_string();
+            cmd.envs = part.environment.clone();
+        }
+        for cmd in part.exec_stop_post.iter_mut() {
+            cmd.dir = part.working_directory.to_string();
+            cmd.envs = part.environment.clone();
+        }
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn exit(&mut self) {
+        ServiceExecutor::exit(self);
+    }
 }
 
 impl ServiceUnit {
@@ -197,6 +228,10 @@ impl ServiceUnit {
 
     pub fn service_part(&self) -> &ServicePart {
         return &self.service_part;
+    }
+
+    pub fn mut_service_part(&mut self) -> &mut ServicePart {
+        return &mut self.service_part;
     }
 
     fn exec(&mut self) -> Result<(), RuntimeError> {
@@ -380,8 +415,28 @@ impl ServicePart {
         &self.exec_stop
     }
 
-    pub fn exec_stop_post(&self) -> &Vec<CmdTask> {
-        &self.exec_stop_post
+    pub fn exec_stop_post(&mut self) -> &mut Vec<CmdTask> {
+        &mut self.exec_stop_post
+    }
+
+    pub fn mut_exec_start_pre(&mut self) -> &mut Vec<CmdTask> {
+        &mut self.exec_start_pre
+    }
+
+    pub fn mut_exec_start_pos(&mut self) -> &mut Vec<CmdTask> {
+        &mut self.exec_start_pos
+    }
+
+    pub fn mut_exec_reload(&mut self) -> &mut Vec<CmdTask> {
+        &mut self.exec_reload
+    }
+
+    pub fn mut_exec_stop(&mut self) -> &mut Vec<CmdTask> {
+        &mut self.exec_stop
+    }
+
+    pub fn mut_exec_stop_post(&mut self) -> &mut Vec<CmdTask> {
+        &mut self.exec_stop_post
     }
 
     pub fn restart_sec(&self) -> u64 {

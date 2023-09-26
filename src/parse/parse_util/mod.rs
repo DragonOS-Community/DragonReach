@@ -10,14 +10,11 @@ use crate::{
 use drstd as std;
 
 use std::{
-    any::Any, format, fs, io::BufRead, os::unix::prelude::PermissionsExt, path::Path, print,
-    println, string::String, string::ToString, sync::Arc, vec, vec::Vec,
+    fs, io::BufRead, os::unix::prelude::PermissionsExt, path::Path, string::String,
+    string::ToString, vec, vec::Vec,
 };
 
-use super::{
-    parse_service::ServiceParser, parse_target::TargetParser, UnitParser, BASE_IEC, BASE_SI,
-    SEC_UNIT_TABLE,
-};
+use super::{UnitParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE};
 
 #[derive(PartialEq)]
 pub enum SizeBase {
@@ -413,7 +410,7 @@ impl UnitParseUtil {
     ///
     /// @return 解析成功则返回Ok(Url)，否则返回Err
     pub fn parse_url(s: &str) -> Result<Vec<Url>, ParseError> {
-        let mut url = Url::default();
+        let _url = Url::default();
         let url_strs = s.split_whitespace().collect::<Vec<&str>>();
         let mut urls = Vec::new();
         for s in url_strs {
@@ -492,11 +489,7 @@ impl UnitParseUtil {
         let mut tasks = Vec::new();
         let mut i = 0;
         while i < cmds.len() {
-            let mut cmd_task = CmdTask {
-                path: String::new(),
-                cmd: Vec::new(),
-                ignore: false,
-            };
+            let mut cmd_task = CmdTask::default();
             //匹配到这里时，这个单词肯定是路径，若路径以-开头则设置ignore
             cmd_task.ignore = cmds[i].starts_with('-');
 
@@ -695,6 +688,7 @@ impl UnitParseUtil {
         return false;
     }
 
+    ///// ## 通过文件名解析该Unit的类型
     pub fn parse_type(path: &str) -> UnitType {
         if let Some(index) = path.rfind('.') {
             let result = &path[index + 1..];
@@ -708,6 +702,7 @@ impl UnitParseUtil {
         UnitType::Unknown
     }
 
+    /// ## 将读取环境变量文件解析为环境变量集合
     pub fn parse_environment_file(env_file: &str) -> Result<Vec<(String, String)>, ParseError> {
         let mut envs = Vec::new();
         if env_file.len() > 0 {

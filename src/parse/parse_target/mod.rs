@@ -1,16 +1,13 @@
 use super::graph::Graph;
 use super::parse_util::UnitParseUtil;
-use super::UnitParser;
+
 use crate::error::parse_error::ParseError;
 use crate::manager::UnitManager;
-use crate::unit::target::TargetUnit;
 
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 
-use std::rc::Rc;
 use std::string::ToString;
-use std::sync::Arc;
 
 pub struct TargetParser;
 
@@ -27,7 +24,7 @@ impl TargetParser {
         let mut graph = Graph::construct_graph(path.to_string())?;
         let ret = graph.topological_sort()?;
         for p in ret {
-            let temp_unit = UnitParseUtil::parse_unit_no_type(&p)?;
+            let _temp_unit = UnitParseUtil::parse_unit_no_type(&p)?;
         }
 
         let result = UnitManager::get_id_with_path(path).unwrap();

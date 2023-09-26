@@ -1,12 +1,11 @@
 #[cfg(target_os = "dragonos")]
 use drstd as std;
 
-use core::slice::SlicePattern;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::vec::Vec;
-use std::{cmp::PartialEq, sync::Mutex};
 
-use crate::manager::{self, UnitManager};
+use crate::manager::UnitManager;
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
     unit::Unit,

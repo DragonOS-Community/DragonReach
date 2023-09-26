@@ -2,23 +2,23 @@
 Description=My Service
 Documentation=https://example.com/docs/my-service.html
 #After=/home/heyicong/DragonReach/parse_test/test1.service
+#OnFailure=/home/heyicong/DragonReach/parse_test/test1.service
 
 [Service]
 Type=simple
 ExecStart=/bin/gdb
-ExecStartPos=/bin/echo start_pos
-ExecStartPre=/bin/echo start_pre
-ExecStopPost=/bin/echo stop_pos
-ExecReload=/bin/echo reload
+#ExecStartPos=/bin/echo start_pos
+#ExecStartPre=/bin/echo start_pre
+#ExecStopPost=/bin/echo stop_pos
+#ExecReload=/bin/echo reload
 WorkingDirectory=/home/heyicong/
 User=myuser
 Group=mygroup
 Environment=VAR1=value1
 Environment=VAR2=value2
-Restart=on-success
-RestartSec=5s
+Restart=always
+RestartSec=1s
 TimeoutStartSec=10s
-TimeoutStopSec=10s
-
+TimeoutStopSec=5s
 [Install]
 #WantedBy=multi-user.target

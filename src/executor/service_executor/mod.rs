@@ -2,59 +2,39 @@
 use drstd as std;
 
 use crate::{
-    error::{
-        runtime_error::{RuntimeError, RuntimeErrorType},
-        ErrorFormat,
-    },
-    manager::{RunningUnit, UnitManager},
-    parse::{parse_util::UnitParseUtil, Segment, UnitParser},
-    task::cmdtask::CmdTask,
+    error::runtime_error::{RuntimeError, RuntimeErrorType},
+    manager::{timer_manager::TimerManager, UnitManager},
+    parse::Segment,
     unit::{
-        service::RestartOption,
         service::{ServiceType, ServiceUnit},
-        Unit, UnitState, UnitType,
+        Unit, UnitState,
     },
 };
-use std::os::unix::process::CommandExt;
-use std::sync::Mutex;
-use std::vec::Vec;
-use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
-    eprint, eprintln,
-    io::{Error, ErrorKind},
-    print, println,
-};
-use std::{io::BufRead, process::Command, sync::Arc};
-use std::{process::Stdio, string::ToString};
 
-use super::ExitStatus;
+use std::process::Command;
+use std::process::Stdio;
+use std::time::Duration;
+use std::vec::Vec;
+use std::{eprint, eprintln, print, println};
+
+use super::{Executor, ExitStatus};
 
 pub struct ServiceExecutor;
 
 impl ServiceExecutor {
+    /// ## Service执行器
     pub fn exec(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
+        // 通过服务启动类型分发
         match *service.service_part().service_type() {
-            ServiceType::Simple => {
-                return Self::exec_simple(service);
-            }
-            ServiceType::Forking => {
-                return Self::exec_forking(service);
-            }
-            ServiceType::Dbus => {
-                return Self::exec_dbus(service);
-            }
-            ServiceType::Notify => {
-                return Self::exec_notify(service);
-            }
-            ServiceType::Idle => {
-                return Self::exec_idle(service);
-            }
-            ServiceType::OneShot => {
-                return Self::exec_one_shot(service);
-            }
-        }
+            ServiceType::Simple => return Self::exec_simple(service),
+            ServiceType::Forking => return Self::exec_forking(service),
+            ServiceType::Dbus => return Self::exec_dbus(service),
+            ServiceType::Notify => return Self::exec_notify(service),
+            ServiceType::Idle => return Self::exec_idle(service),
+            ServiceType::OneShot => return Self::exec_one_shot(service),
+        };
     }
+
     pub fn exec_simple(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         //处理conflict
         let conflicts = service.unit_base().unit_part().conflicts();
@@ -73,7 +53,6 @@ impl ServiceExecutor {
 
         //获取启动命令
         let exec_start = service.service_part().exec_start();
-        println!("exec:{}", exec_start.path);
 
         //TODO:设置uid与gid
 
@@ -97,7 +76,7 @@ impl ServiceExecutor {
                 //修改service状态
                 service.mut_unit_base().set_state(UnitState::Enabled);
                 //启动成功后将Child加入全局管理的进程表
-                UnitManager::push_running(RunningUnit::new(p, service.unit_id()));
+                UnitManager::push_running(service.unit_id(), p);
                 //执行启动后命令
                 Self::exec_start_pos(service)?;
             }
@@ -109,11 +88,11 @@ impl ServiceExecutor {
         Ok(())
     }
 
-    fn exec_dbus(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_dbus(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
-    fn exec_forking(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_forking(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
@@ -125,21 +104,18 @@ impl ServiceExecutor {
         Ok(())
     }
 
-    fn exec_notify(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_notify(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
-    fn exec_one_shot(service: &ServiceUnit) -> Result<(), RuntimeError> {
+    fn exec_one_shot(_service: &ServiceUnit) -> Result<(), RuntimeError> {
         Ok(())
     }
 
     fn exec_start_pos(service: &ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_start_pos();
         for cmd in cmds {
-            cmd.spawn(
-                service.service_part().working_directory().to_string(),
-                service.service_part().environment(),
-            )?;
+            cmd.spawn()?;
         }
         Ok(())
     }
@@ -147,10 +123,7 @@ impl ServiceExecutor {
     fn exec_start_pre(service: &ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_start_pre();
         for cmd in cmds {
-            cmd.spawn(
-                service.service_part().working_directory().to_string(),
-                service.service_part().environment(),
-            )?;
+            cmd.spawn()?;
         }
         Ok(())
     }
@@ -159,22 +132,16 @@ impl ServiceExecutor {
     fn exec_stop(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_stop();
         for cmd in cmds {
-            cmd.no_spawn(
-                service.service_part().working_directory().to_string(),
-                service.service_part().environment(),
-            )?;
+            cmd.no_spawn()?;
         }
         Ok(())
     }
 
     //停止后执行的命令
     fn exec_stop_post(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
-        let cmds = service.service_part().exec_stop_post();
+        let cmds = service.mut_service_part().mut_exec_stop_post();
         for cmd in cmds {
-            cmd.no_spawn(
-                service.service_part().working_directory().to_string(),
-                service.service_part().environment(),
-            )?;
+            cmd.no_spawn()?;
         }
         Ok(())
     }
@@ -182,29 +149,91 @@ impl ServiceExecutor {
     fn exec_reload(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_reload();
         for cmd in cmds {
-            cmd.no_spawn(
-                service.service_part().working_directory().to_string(),
-                service.service_part().environment(),
-            )?;
+            cmd.no_spawn()?;
         }
         Ok(())
     }
 
-    //服务退出执行的逻辑(包括自然退出及显式退出)
+    /// ## 服务退出执行的逻辑(包括自然退出及显式退出)
     pub fn after_exit(service: &mut ServiceUnit, exit_status: ExitStatus) {
         //TODO: 需要考虑是否需要在此处执行退出后代码，还是只需要显式退出时才执行
         let _ = Self::exec_stop_post(service);
 
+        // 停止被spawn的命令
+        let s_part = service.mut_service_part();
+        for cmd in s_part.mut_exec_start_pos() {
+            cmd.stop()
+        }
+        for cmd in s_part.mut_exec_start_pre() {
+            cmd.stop()
+        }
+
+        // 取消未进行的定时器任务
+        TimerManager::cancel_timer(service.unit_id());
+
+        // 关闭和此服务绑定的项目
+        for bind in service.unit_base().unit_part().be_binded_by() {
+            UnitManager::kill_running(*bind);
+        }
+
         //判断是否需要restart，需要则再次启动服务
         if service.service_part().restart().is_restart(&exit_status) {
-            let _ = Self::exec_reload(service);
-            let _ = service.run();
+            let ns = service.service_part().restart_sec();
+            let binds = service.unit_base().unit_part().be_binded_by();
+            let binds = Vec::from(binds);
+            let id = service.unit_id();
+            if ns > 0 {
+                let cmds = service.service_part().exec_reload().clone();
+                TimerManager::push_timer(
+                    Duration::from_nanos(ns),
+                    move || {
+                        for cmd in &cmds {
+                            cmd.no_spawn()?;
+                        }
+                        Executor::exec(id)?;
+                        for bind in &binds {
+                            Executor::exec(*bind)?
+                        }
+                        Ok(())
+                    },
+                    service.unit_id(),
+                )
+            } else {
+                let _ = Self::exec_reload(service);
+                let _ = Executor::exec(id);
+            }
             return;
         }
 
         //如果该进程标记了RemainAfterExit，则将其加入特殊标记表
         if service.service_part().remain_after_exit() {
             UnitManager::push_flag_running(service.unit_id());
+            return;
+        }
+
+        //停止服务后设置Unit状态
+        service.mut_unit_base().set_state(UnitState::Disabled);
+    }
+
+    /// ## 显示退出Service
+    pub fn exit(service: &mut ServiceUnit) {
+        // TODO: 打印日志
+        let _ = Self::exec_stop(service);
+
+        let ns = service.service_part().timeout_stop_sec();
+        let id = service.unit_id();
+        if ns != 0 {
+            // 计时器触发后若服务还未停止，则kill掉进程
+            TimerManager::push_timer(
+                Duration::from_nanos(ns),
+                move || {
+                    if UnitManager::is_running_unit(&id) {
+                        UnitManager::kill_running(id);
+                    }
+                    Ok(())
+                },
+                service.unit_id(),
+            )
         }
     }
 }

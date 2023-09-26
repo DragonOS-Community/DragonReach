@@ -1,5 +1,5 @@
 use crate::error::parse_error::ParseErrorType;
-use crate::manager::{self, UnitManager};
+use crate::manager::UnitManager;
 use crate::unit::{BaseUnit, Unit};
 use crate::DRAGON_REACH_UNIT_DIR;
 use crate::{
@@ -236,7 +236,7 @@ impl UnitParser {
         //用于记录当前段的类型
         let mut segment = Segment::None;
         //用于处理多行对应一个属性的情况
-        let mut last_attr = ServiceUnitAttr::None;
+        let _last_attr = ServiceUnitAttr::None;
 
         //一行一行向下解析
         let lines = reader
@@ -288,7 +288,7 @@ impl UnitParser {
                 i += 1;
                 break;
             }
-            //=号分割后第一个元素为属性，后面的均为值，若一行出现两个等号则是语法错误
+            //=号分割后第一个元素为属性，后面的均为值
             let (attr_str, val_str) = match line.find('=') {
                 Some(idx) => (line[..idx].trim(), line[idx + 1..].trim()),
                 None => {
@@ -344,6 +344,7 @@ impl UnitParser {
         }
         unit.set_unit_base(unit_base);
         let id = unit.set_unit_id();
+        unit.init();
         let dret: Arc<Mutex<dyn Unit>> = Arc::new(Mutex::new(unit));
         UnitManager::insert_unit_with_id(id, dret);
         UnitManager::insert_into_path_table(path, id);
