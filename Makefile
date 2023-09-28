@@ -20,7 +20,7 @@ install:
 	cp ./parse_test/shell.service $(REACH_ETC_DIR)/system/shell.service
 
 	cargo -Z build-std=core,alloc,compiler_builtins install --target $(TARGET) --path .  --root $(TMP_INSTALL_DIR)
-	mv $(OUTPUT_DIR)/tmp/bin/DragonReach $(REACH_BIN_DIR)/DragonReach
+	mv $(TMP_INSTALL_DIR)/bin/DragonReach $(REACH_BIN_DIR)/DragonReach
 	rm -rf $(TMP_INSTALL_DIR)
 
 build-linux:
