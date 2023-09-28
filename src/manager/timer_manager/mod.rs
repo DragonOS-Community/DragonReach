@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use crate::{error::runtime_error::RuntimeError, time::timer::Timer};
 use lazy_static::lazy_static;
 use std::{boxed::Box, sync::RwLock, time::Duration, vec::Vec};

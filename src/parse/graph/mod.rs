@@ -3,8 +3,6 @@ use crate::{
     unit::UnitType,
 };
 
-#[cfg(target_os = "dragonos")]
-use drstd as std;
 use std::io::BufRead;
 use std::string::{String, ToString};
 use std::vec::Vec;

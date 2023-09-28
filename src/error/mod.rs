@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 pub mod parse_error;
 pub mod runtime_error;
 

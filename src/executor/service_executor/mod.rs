@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
     manager::{timer_manager::TimerManager, UnitManager},

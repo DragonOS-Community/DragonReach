@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::boxed::Box;
 use std::time::{Duration, Instant};
 use std::{print, println};

@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::{eprint, eprintln, print, process::Command, string::String, vec::Vec};
 
 use crate::{
