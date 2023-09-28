@@ -1,5 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
 use std::hash::{Hash, Hasher};
 use std::{
     collections::hash_map::DefaultHasher,

@@ -6,9 +6,6 @@ use crate::executor::ExitStatus;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
 
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::any::Any;
 use std::default::Default;
 use std::fmt::Debug;

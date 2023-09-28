@@ -1,6 +1,5 @@
 use super::ErrorFormat;
-#[cfg(target_os = "dragonos")]
-use drstd as std;
+
 use std::format;
 use std::string::String;
 

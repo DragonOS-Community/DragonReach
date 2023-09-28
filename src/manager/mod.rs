@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::{eprint, eprintln, print, println, vec::Vec};
 
 pub mod timer_manager;

@@ -3,14 +3,8 @@
 #![feature(slice_pattern)]
 #![feature(fn_traits)]
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(target_os = "dragonos")]{
-        extern crate drstd;
-        use drstd as std;
-    }
-}
+#[cfg(target_os = "dragonos")]
+extern crate drstd as std;
 
 extern crate hashbrown;
 
@@ -41,11 +35,7 @@ fn main() {
     use manager::timer_manager::TimerManager;
     use parse::UnitParser;
 
-    use crate::{
-        executor::Executor,
-        manager::{Manager, UnitManager},
-        parse::parse_util::UnitParseUtil,
-    };
+    use crate::{executor::Executor, manager::Manager};
 
     let mut units_file_name = Vec::new();
     //读取目录里面的unit文件

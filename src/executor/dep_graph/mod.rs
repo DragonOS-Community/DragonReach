@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::vec::Vec;

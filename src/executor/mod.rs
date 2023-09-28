@@ -1,6 +1,3 @@
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 pub mod dep_graph;
 pub mod service_executor;
 

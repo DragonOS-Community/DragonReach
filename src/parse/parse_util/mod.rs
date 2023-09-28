@@ -6,9 +6,6 @@ use crate::{
     FileDescriptor,
 };
 
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::{
     fs, io::BufRead, os::unix::prelude::PermissionsExt, path::Path, string::String,
     string::ToString, vec, vec::Vec,

@@ -9,9 +9,6 @@ use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
 use crate::task::cmdtask::CmdTask;
 
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::string::{String, ToString};
 
 use std::vec::Vec;

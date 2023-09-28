@@ -7,9 +7,6 @@ use crate::{
     unit::{service::ServiceUnitAttr, BaseUnitAttr, InstallUnitAttr, UnitType},
 };
 
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use std::format;

@@ -4,8 +4,7 @@ use crate::parse::parse_target::TargetParser;
 use crate::parse::Segment;
 
 use core::result::Result::{self, Ok};
-#[cfg(target_os = "dragonos")]
-use drstd as std;
+
 use std::marker::{Send, Sized, Sync};
 
 #[derive(Debug, Clone, Default)]

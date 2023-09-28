@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub const AF_INET: i32 = 2;
 pub const AF_INET6: i32 = 10;
 

@@ -4,9 +4,6 @@ use super::parse_util::UnitParseUtil;
 use crate::error::parse_error::ParseError;
 use crate::manager::UnitManager;
 
-#[cfg(target_os = "dragonos")]
-use drstd as std;
-
 use std::string::ToString;
 
 pub struct TargetParser;
