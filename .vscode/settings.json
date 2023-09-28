@@ -1,16 +1,17 @@
 {
+    "rust-analyzer.linkedProjects": [
+        "./Cargo.toml",
+    ],
     "rust-analyzer.check.overrideCommand": [
         "cargo",
-        "+nightly",
+        "+nightly-2023-08-15",
         "-Z",
         "build-std=core,alloc,compiler_builtins",
         "check",
         "--workspace",
         "--message-format=json",
         "--target",
-        "target.json",
+        "x86_64-unknown-dragonos.json",
     ],
-
-    "rust-analyzer.cargo.target": "x86_64-unknown-dragonos",
-    
+    // "rust-analyzer.cargo.target": "x86_64-unknown-dragonos",
 }
