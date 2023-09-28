@@ -14,8 +14,7 @@ hashbrown = "0.11"
 cfg-if = { version = "1.0"}
 
 [target.'cfg(target_os = "dragonos")'.dependencies]
-drstd = { path = "/home/longjin/code/drstd" }
-#drstd = { git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", rev = "a1cd34728e" }
+drstd = { git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", rev = "e1fbd22da2" }
 
 lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
 
