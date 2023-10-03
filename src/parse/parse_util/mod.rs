@@ -13,6 +13,7 @@ use std::{
 
 use super::{UnitParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE};
 
+#[allow(dead_code)]
 #[derive(PartialEq)]
 pub enum SizeBase {
     IEC,
@@ -21,6 +22,7 @@ pub enum SizeBase {
 
 pub struct UnitParseUtil;
 
+#[allow(dead_code)]
 impl UnitParseUtil {
     /// @brief 解析布尔值
     ///
@@ -147,14 +149,12 @@ impl UnitParseUtil {
         }
 
         let mtu: u32 = mtu as u32;
-
-        let mut min_mtu: u32 = 0;
         //判断mtu是否合法
-        if family == AF_INET6 {
-            min_mtu = IPV6_MIN_MTU;
-        } else if family == AF_INET {
-            min_mtu = IPV4_MIN_MTU;
-        } else {
+        if family == AF_INET6 && mtu < IPV6_MIN_MTU {
+            return Err(ParseError::new(ParseErrorType::ERANGE, String::new(), 0));
+        } else if family == AF_INET && mtu < IPV4_MIN_MTU {
+            return Err(ParseError::new(ParseErrorType::ERANGE, String::new(), 0));
+        } else if family != AF_INET6 || family != AF_INET {
             return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
 
@@ -491,7 +491,7 @@ impl UnitParseUtil {
             cmd_task.ignore = cmds[i].starts_with('-');
 
             //获取到一个CmdTask的路径部分
-            let mut path = String::new();
+            let path: String;
             if cmd_task.ignore {
                 path = String::from(&cmds[i][1..]);
             } else {
@@ -579,9 +579,9 @@ impl UnitParseUtil {
     /// @return 解析成功则返回Ok(u64)，否则返回Err
     pub fn parse_sec(s: &str) -> Result<u64, ParseError> {
         //下列参数分别记录整数部分，小数部分以及单位
-        let mut integer: u64 = 0;
+        let integer: u64;
         let mut frac: u64 = 0;
-        let mut unit: &str = "";
+        let unit: &str;
 
         match s.find('.') {
             Some(idx) => {

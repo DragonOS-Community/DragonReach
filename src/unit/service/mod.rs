@@ -104,6 +104,7 @@ impl Default for MountFlag {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
 pub struct ServicePart {
     //生命周期相关
@@ -285,6 +286,7 @@ pub enum ServiceUnitAttr {
     MountFlags,
 }
 
+#[allow(dead_code)]
 impl ServicePart {
     pub fn set_attr(&'_ mut self, attr: &ServiceUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {

@@ -4,9 +4,9 @@ pub mod service_executor;
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
     manager::UnitManager,
-    unit::Unit,
 };
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum ExitStatus {
     Success,  // 成功退出

@@ -105,6 +105,7 @@ pub trait Unit: Sync + Send + Debug {
 }
 
 //Unit状态
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UnitState {
     Enabled,
@@ -114,6 +115,7 @@ pub enum UnitState {
 }
 
 //Unit类型
+#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum UnitType {
     Automount,
@@ -153,6 +155,7 @@ impl Default for BaseUnit {
     }
 }
 
+#[allow(dead_code)]
 impl BaseUnit {
     pub fn set_state(&mut self, state: UnitState) {
         self.state = state;
@@ -262,6 +265,7 @@ impl Default for UnitPart {
     }
 }
 
+#[allow(dead_code)]
 impl UnitPart {
     pub fn set_attr(&mut self, attr: &BaseUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {
@@ -421,6 +425,7 @@ impl Default for InstallPart {
     }
 }
 
+#[allow(dead_code)]
 impl InstallPart {
     pub fn set_attr(&mut self, attr: &InstallUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {
@@ -475,6 +480,7 @@ impl InstallPart {
     }
 }
 //对应Unit文件的各种属性
+#[allow(dead_code)]
 pub enum BaseUnitAttr {
     None,
 
@@ -501,6 +507,7 @@ pub enum BaseUnitAttr {
     Conflicts,
 }
 
+#[allow(dead_code)]
 pub enum InstallUnitAttr {
     None,
     //Install段
