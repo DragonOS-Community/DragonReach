@@ -8,18 +8,21 @@ use crate::{
     unit::Unit,
 };
 
+#[allow(dead_code)]
 pub struct DepGraphNode {
     value: usize,
     edges: Vec<usize>,
     incoming_edges: Vec<usize>,
 }
 
+#[allow(dead_code)]
 pub struct DepGraph {
     nodes: Vec<DepGraphNode>,
     value: Vec<usize>,
 }
 
 // 提供拓扑排序方法，在启动服务时确定先后顺序
+#[allow(dead_code)]
 impl DepGraph {
     fn new() -> Self {
         return DepGraph {

@@ -36,6 +36,7 @@ pub struct RunningTableManager {
     running_table: HashMap<usize, Child>,
 }
 
+#[allow(dead_code)]
 impl RunningTableManager {
     pub fn running_table(&self) -> &HashMap<usize, Child> {
         &self.running_table
@@ -50,6 +51,7 @@ pub struct UnitManager;
 
 unsafe impl Sync for UnitManager {}
 
+#[allow(dead_code)]
 impl UnitManager {
     /// 插入一条path到unit_id的映射
     pub fn insert_into_path_table(path: &str, unit: usize) {

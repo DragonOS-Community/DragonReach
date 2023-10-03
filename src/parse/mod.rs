@@ -273,8 +273,8 @@ impl UnitParser {
             //下面进行属性匹配
             //合并多行为一个属性的情况
             //最后一个字符为\，代表换行，将多行转换为一行统一解析
+            let mut templine = String::new();
             if lines[i].ends_with('\\') {
-                let mut templine = String::new();
                 while lines[i].ends_with('\\') {
                     let temp = &lines[i][..lines[i].len() - 1];
                     templine = format!("{} {}", templine, temp);
@@ -283,7 +283,6 @@ impl UnitParser {
                 templine = format!("{} {}", templine, lines[i]);
                 line = templine.as_str();
                 i += 1;
-                break;
             }
             //=号分割后第一个元素为属性，后面的均为值
             let (attr_str, val_str) = match line.find('=') {
