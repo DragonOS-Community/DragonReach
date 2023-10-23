@@ -4,5 +4,5 @@ Description=Shell
 [Service]
 Type=simple
 ExecStart=/bin/shell.elf
-Restart=always
-RestartSec=5000
+#Restart=always
+#RestartSec=500000

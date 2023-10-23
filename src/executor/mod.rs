@@ -4,6 +4,7 @@ pub mod service_executor;
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
     manager::UnitManager,
+    unit::UnitState,
 };
 
 #[allow(dead_code)]
@@ -39,8 +40,26 @@ impl Executor {
     pub fn exec(unit_id: usize) -> Result<(), RuntimeError> {
         // TODO: 添加超时检测，这个工作应该在线程执行
 
+        {
+            // 设置Unit状态为正在启动
+            // TODO: 目前单线程工作这样设置是无意义的
+            UnitManager::get_unit_with_id(&unit_id)
+                .unwrap()
+                .lock()
+                .unwrap()
+                .unit_base_mut()
+                .set_state(UnitState::Activating);
+        }
         match Self::exec_(unit_id) {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                UnitManager::get_unit_with_id(&unit_id)
+                .unwrap()
+                .lock()
+                .unwrap()
+                .unit_base_mut()
+                .set_state(UnitState::Active);
+                Ok(())
+            },
             Err(e) => {
                 let mutex = UnitManager::get_unit_with_id(&unit_id).unwrap();
                 let mut unit = mutex.lock().unwrap();
@@ -51,6 +70,7 @@ impl Executor {
                     let _ = Executor::exec(*id);
                 }
 
+                unit.unit_base_mut().set_state(UnitState::Failed);
                 unit.after_exit(ExitStatus::Failure);
                 return Err(e);
             }
@@ -117,5 +137,12 @@ impl Executor {
         // 启动自身
         unit.run()?;
         return Ok(());
+    }
+
+    pub fn restart(id: usize) -> Result<(), RuntimeError> {
+        if let Some(unit) = UnitManager::get_unit_with_id(&id) {
+            unit.lock().unwrap().restart()?;
+        }
+        Ok(())
     }
 }

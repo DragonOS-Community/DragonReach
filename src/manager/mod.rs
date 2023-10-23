@@ -2,6 +2,7 @@ use std::{eprint, eprintln, print, println, vec::Vec};
 
 pub mod timer_manager;
 pub mod unit_manager;
+pub mod ctl_manager;
 
 pub use unit_manager::*;
 

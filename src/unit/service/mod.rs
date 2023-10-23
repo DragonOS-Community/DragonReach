@@ -176,7 +176,7 @@ impl Unit for ServiceUnit {
         self.exec()
     }
 
-    fn mut_unit_base(&mut self) -> &mut BaseUnit {
+    fn unit_base_mut(&mut self) -> &mut BaseUnit {
         return &mut self.unit_base;
     }
 
@@ -216,6 +216,10 @@ impl Unit for ServiceUnit {
 
     fn exit(&mut self) {
         ServiceExecutor::exit(self);
+    }
+
+    fn restart(&mut self) -> Result<(), RuntimeError> {
+        return ServiceExecutor::restart(self);
     }
 }
 

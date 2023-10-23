@@ -3,8 +3,18 @@
 #![feature(slice_pattern)]
 #![feature(fn_traits)]
 
+use cfg_if::cfg_if;
+
 #[cfg(target_os = "dragonos")]
 extern crate drstd as std;
+
+cfg_if! {
+    if #[cfg(target_os = "dragonos")] {
+        extern crate drstd as std;
+        #[macro_use]
+        extern crate dsc;
+    }
+}
 
 extern crate hashbrown;
 
@@ -13,6 +23,7 @@ mod error;
 mod executor;
 mod manager;
 mod parse;
+mod systemctl;
 mod task;
 mod time;
 mod unit;
@@ -29,13 +40,22 @@ pub struct FileDescriptor(usize);
 
 const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
 
+extern "C" fn thread_function(_: *mut std::ffi::c_void) -> *mut std::ffi::c_void {
+    println!("Child thread");
+    // loop{}
+    core::ptr::null_mut() as *mut std::ffi::c_void
+}
+
 #[cfg(target_os = "dragonos")]
 #[no_mangle]
 fn main() {
     use manager::timer_manager::TimerManager;
     use parse::UnitParser;
 
-    use crate::{executor::Executor, manager::Manager};
+    use crate::{executor::Executor, manager::Manager, systemctl::listener::Systemctl};
+
+    // 初始化
+    Systemctl::init();
 
     let mut units_file_name = Vec::new();
     //读取目录里面的unit文件
@@ -66,8 +86,6 @@ fn main() {
         if id != 0 {
             if let Err(e) = Executor::exec(id) {
                 eprintln!("Err:{}", e.error_format());
-            } else {
-                println!("Service {} startup success...", id);
             }
         }
     }
@@ -80,6 +98,8 @@ fn main() {
         Manager::check_cmd_proc();
         // 检查计时器任务
         TimerManager::check_timer();
+        // 监听systemctl
+        Systemctl::ctl_listen();
     }
 }
 

@@ -49,7 +49,7 @@ impl Unit for TargetUnit {
         Ok(())
     }
 
-    fn mut_unit_base(&mut self) -> &mut BaseUnit {
+    fn unit_base_mut(&mut self) -> &mut BaseUnit {
         return &mut self.unit_base;
     }
 

@@ -1,5 +1,6 @@
 use crate::error::parse_error::ParseErrorType;
 use crate::manager::UnitManager;
+use crate::unit::timer::{TimerPart, TimerUnitAttr};
 use crate::unit::{BaseUnit, Unit};
 use crate::DRAGON_REACH_UNIT_DIR;
 use crate::{
@@ -147,6 +148,26 @@ lazy_static! {
         table.insert("ns", 1);
         table
     };
+
+    pub static ref TIMER_UNIT_ATTR_TABLE: HashMap<&'static str, TimerUnitAttr> = {
+        let mut map = HashMap::new();
+        map.insert("OnActiveSec", TimerUnitAttr::OnActiveSec);
+        map.insert("OnBootSec", TimerUnitAttr::OnBootSec);
+        map.insert("OnStartupSec", TimerUnitAttr::OnStartUpSec);
+        map.insert("OnUnitActiveSec", TimerUnitAttr::OnUnitInactiveSec);
+        map.insert("OnUnitInactiveSec", TimerUnitAttr::OnUnitInactiveSec);
+        map.insert("OnCalendar", TimerUnitAttr::OnCalendar);
+        map.insert("AccuracySec", TimerUnitAttr::AccuarcySec);
+        map.insert("RandomizedDelaySec", TimerUnitAttr::RandomizedDelaySec);
+        map.insert("FixedRandomDelay", TimerUnitAttr::FixedRandomDelay);
+        map.insert("OnClockChange", TimerUnitAttr::OnClockChange);
+        map.insert("OnTimezoneChange", TimerUnitAttr::OnTimeZoneChange);
+        map.insert("Unit", TimerUnitAttr::Unit);
+        map.insert("Persistent", TimerUnitAttr::Persistent);
+        map.insert("WakeSystem", TimerUnitAttr::WakeSystem);
+        map.insert("RemainAfterElapse", TimerUnitAttr::RemainAfterElapse);
+        map
+    };
 }
 
 //用于解析Unit共有段的方法
@@ -216,9 +237,13 @@ impl UnitParser {
         path: &str,
         unit_type: UnitType,
     ) -> Result<usize, ParseError> {
+        let name = match path.rfind("/") {
+            Some(size) => String::from(&path[size..]),
+            None => String::from(path),
+        };
         // 如果该文件已解析过，则直接返回id
-        if UnitManager::contains_path(path) {
-            let unit = UnitManager::get_unit_with_path(path).unwrap();
+        if UnitManager::contains_name(&name) {
+            let unit = UnitManager::get_unit_with_name(&name).unwrap();
             let unit = unit.lock().unwrap();
             return Ok(unit.unit_id());
         }
@@ -338,12 +363,14 @@ impl UnitParser {
             }
             i += 1;
         }
+
         unit.set_unit_base(unit_base);
+        unit.set_unit_name(name.clone());
         let id = unit.set_unit_id();
         unit.init();
         let dret: Arc<Mutex<dyn Unit>> = Arc::new(Mutex::new(unit));
         UnitManager::insert_unit_with_id(id, dret);
-        UnitManager::insert_into_path_table(path, id);
+        UnitManager::insert_into_name_table(&name, id);
 
         return Ok(id);
     }

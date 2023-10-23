@@ -20,10 +20,10 @@ lazy_static! {
     static ref IDLE_SERVIEC_DEQUE: Mutex<VecDeque<usize>> = Mutex::new(VecDeque::new());
 
     // id到unit的映射表，全局的Unit管理表
-    static ref ID_TO_UNIT_MAP: RwLock<HashMap<usize,Arc<Mutex<dyn Unit>>>> = RwLock::new(HashMap::new());
+    pub(super) static ref ID_TO_UNIT_MAP: RwLock<HashMap<usize,Arc<Mutex<dyn Unit>>>> = RwLock::new(HashMap::new());
 
     // 辅助表，通过服务名映射其id
-    static ref PATH_TO_UNIT_MAP: RwLock<HashMap<u64,usize>> = RwLock::new(HashMap::new());
+    static ref NAME_TO_UNIT_MAP: RwLock<HashMap<u64,usize>> = RwLock::new(HashMap::new());
 
     // 全局运行中的Unit表
     pub(super) static ref RUNNING_TABLE: RwLock<RunningTableManager> = RwLock::new(RunningTableManager { running_table: HashMap::new() });
@@ -54,27 +54,27 @@ unsafe impl Sync for UnitManager {}
 #[allow(dead_code)]
 impl UnitManager {
     /// 插入一条path到unit_id的映射
-    pub fn insert_into_path_table(path: &str, unit: usize) {
+    pub fn insert_into_name_table(path: &str, unit: usize) {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
         let hash = hasher.finish();
-        PATH_TO_UNIT_MAP.write().unwrap().insert(hash, unit);
+        NAME_TO_UNIT_MAP.write().unwrap().insert(hash, unit);
     }
 
     // 判断当前是否已经有了对应path的Unit
-    pub fn contains_path(path: &str) -> bool {
+    pub fn contains_name(path: &str) -> bool {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
         let hash = hasher.finish();
-        PATH_TO_UNIT_MAP.read().unwrap().contains_key(&hash)
+        NAME_TO_UNIT_MAP.read().unwrap().contains_key(&hash)
     }
 
     // 通过path获取到Unit
-    pub fn get_unit_with_path(path: &str) -> Option<Arc<Mutex<dyn Unit>>> {
+    pub fn get_unit_with_name(name: &str) -> Option<Arc<Mutex<dyn Unit>>> {
         let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
+        name.hash(&mut hasher);
         let hash = hasher.finish();
-        let map = PATH_TO_UNIT_MAP.read().unwrap();
+        let map = NAME_TO_UNIT_MAP.read().unwrap();
         let id = match map.get(&hash) {
             Some(id) => id,
             None => {
@@ -99,7 +99,7 @@ impl UnitManager {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
         let hash = hasher.finish();
-        PATH_TO_UNIT_MAP.read().unwrap().get(&hash).cloned()
+        NAME_TO_UNIT_MAP.read().unwrap().get(&hash).cloned()
     }
 
     // 判断该Unit是否正在运行中
@@ -202,11 +202,11 @@ impl UnitManager {
         // 处理before段，将before段的Unit添加此Unit为After
         for (id, unit) in manager.iter() {
             let mut unit = unit.lock().unwrap();
-            let before = unit.mut_unit_base().unit_part().before();
+            let before = unit.unit_base_mut().unit_part().before();
             for rid in before {
                 let req = UnitManager::get_unit_with_id(rid).unwrap();
                 let mut req = req.lock().unwrap();
-                req.mut_unit_base().mut_unit_part().push_after_unit(*id);
+                req.unit_base_mut().mut_unit_part().push_after_unit(*id);
             }
         }
 
@@ -214,31 +214,37 @@ impl UnitManager {
             let mut unit = unit.lock().unwrap();
 
             // 处理binds_to段
-            let binds_to = unit.mut_unit_base().unit_part().binds_to();
+            let binds_to = unit.unit_base_mut().unit_part().binds_to();
             for rid in binds_to {
                 let req = UnitManager::get_unit_with_id(rid).unwrap();
                 let mut req = req.lock().unwrap();
-                req.mut_unit_base().mut_unit_part().push_be_binded_by(*id);
+                req.unit_base_mut().mut_unit_part().push_be_binded_by(*id);
             }
 
             // 处理part_of段
-            let part_of = unit.mut_unit_base().unit_part().part_of();
+            let part_of = unit.unit_base_mut().unit_part().part_of();
             for rid in part_of {
                 let req = UnitManager::get_unit_with_id(rid).unwrap();
                 let mut req = req.lock().unwrap();
-                req.mut_unit_base().mut_unit_part().push_be_binded_by(*id);
+                req.unit_base_mut().mut_unit_part().push_be_binded_by(*id);
             }
         }
     }
 
-    /// ## 杀死Unit进程
-    pub fn kill_running(id: usize) {
+    /// ## 如果Unit进程正在运行则杀死Unit进程
+    pub fn try_kill_running(id: usize) -> bool {
         if Self::is_running_unit(&id) {
-            let mut running_manager = RUNNING_TABLE.write().unwrap();
-            let unit = running_manager.running_table.get_mut(&id).unwrap();
-            let _ = unit.kill();
-            println!("kill:{}", id);
-            running_manager.running_table.remove(&id);
+            Self::kill_running(id);
+            return true;
         }
+        return false;
+    }
+
+    pub fn kill_running(id: usize) {
+        let mut running_manager = RUNNING_TABLE.write().unwrap();
+        let unit = running_manager.running_table.get_mut(&id).unwrap();
+        let _ = unit.kill();
+        println!("kill:{}", id);
+        running_manager.running_table.remove(&id);
     }
 }
