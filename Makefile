@@ -9,7 +9,7 @@ TMP_INSTALL_DIR=$(OUTPUT_DIR)/tmp_install
 all: build
 
 build:
-	cargo -Z build-std=core,alloc,compiler_builtins build --target ./x86_64-unknown-dragonos.json --release
+	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins build --target ./x86_64-unknown-dragonos.json --release
 
 install:
 	mkdir -p $(TMP_INSTALL_DIR)
@@ -19,7 +19,7 @@ install:
 
 	cp ./parse_test/shell.service $(REACH_ETC_DIR)/system/shell.service
 
-	cargo -Z build-std=core,alloc,compiler_builtins install --target $(TARGET) --path .  --root $(TMP_INSTALL_DIR)
+	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins install --target $(TARGET) --path .  --root $(TMP_INSTALL_DIR)
 	mv $(TMP_INSTALL_DIR)/bin/DragonReach $(REACH_BIN_DIR)/DragonReach
 	rm -rf $(TMP_INSTALL_DIR)
 
