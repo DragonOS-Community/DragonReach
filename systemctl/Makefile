@@ -8,7 +8,7 @@ TMP_INSTALL_DIR=$(OUTPUT_DIR)/tmp_install
 all: build
 
 build:
-	cargo -Z build-std=core,alloc,compiler_builtins build --target ../x86_64-unknown-dragonos.json --release
+	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins build --target ../x86_64-unknown-dragonos.json --release
 
 install:
 	mkdir -p $(TMP_INSTALL_DIR)
@@ -19,7 +19,7 @@ install:
 	rm -rf $(TMP_INSTALL_DIR)
 
 build-linux:
-	cargo -Z build-std=core,alloc,compiler_builtins build --target x86_64-unknown-linux-gnu
+	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins build --target x86_64-unknown-linux-gnu
 
 clean:
 	cargo clean
@@ -31,4 +31,4 @@ fmt-check:
 	cargo fmt --check
 
 check:
-	cargo -Z build-std=core,alloc,compiler_builtins check --workspace --message-format=json --target ../x86_64-unknown-dragonos.json
+	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins check --workspace --message-format=json --target ../x86_64-unknown-dragonos.json
