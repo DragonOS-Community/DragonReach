@@ -693,7 +693,7 @@ impl UnitParseUtil {
 
     ///// ## 通过文件名解析该Unit的类型
     pub fn parse_type(path: &str) -> UnitType {
-        let mut ret: &str;
+        let ret: &str;
         if let Some(index) = path.rfind('.') {
             ret = &path[index + 1..];
         } else {

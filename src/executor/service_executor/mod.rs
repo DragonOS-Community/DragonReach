@@ -175,7 +175,7 @@ impl ServiceExecutor {
 
         //判断是否需要restart，需要则再次启动服务
         if service.service_part().restart().is_restart(&exit_status) {
-            Self::restart(service);
+            let _ = Self::restart(service);
             return;
         }
 

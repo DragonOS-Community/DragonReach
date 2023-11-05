@@ -1,4 +1,4 @@
-use std::libc::c_str::CString;
+use std::ffi::CString;
 
 pub mod ctl_parser;
 pub mod listener;

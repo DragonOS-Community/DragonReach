@@ -53,11 +53,11 @@ impl Executor {
         match Self::exec_(unit_id) {
             Ok(_) => {
                 UnitManager::get_unit_with_id(&unit_id)
-                .unwrap()
-                .lock()
-                .unwrap()
-                .unit_base_mut()
-                .set_state(UnitState::Active);
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .unit_base_mut()
+                    .set_state(UnitState::Active);
                 Ok(())
             },
             Err(e) => {

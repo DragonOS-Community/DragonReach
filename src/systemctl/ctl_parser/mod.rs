@@ -10,6 +10,7 @@ use std::vec::Vec;
 
 use super::listener::Command;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum CommandOperation {
     ListUnits,
@@ -76,6 +77,7 @@ pub enum CommandOperation {
     None,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Pattern {
     Help,

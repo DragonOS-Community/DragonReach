@@ -1,8 +1,8 @@
-use std::{eprint, eprintln, print, println, vec::Vec};
+use std::{eprint, eprintln, vec::Vec};
 
+pub mod ctl_manager;
 pub mod timer_manager;
 pub mod unit_manager;
-pub mod ctl_manager;
 
 pub use unit_manager::*;
 
@@ -24,9 +24,10 @@ impl Manager {
                 //进程正常退出
                 Ok(Some(status)) => {
                     //TODO:交付给相应类型的Unit类型去执行退出后的逻辑
-                    println!("Service exited success");
-
-                    exited_unit.push((*unit.0, ExitStatus::from_exit_code(status.code().unwrap())));
+                    exited_unit.push((
+                        *unit.0,
+                        ExitStatus::from_exit_code(status.code().unwrap_or(0)),
+                    ));
                 }
                 //进程错误退出(或启动失败)
                 Err(e) => {

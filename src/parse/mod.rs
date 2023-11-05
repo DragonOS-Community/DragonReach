@@ -1,6 +1,6 @@
 use crate::error::parse_error::ParseErrorType;
 use crate::manager::UnitManager;
-use crate::unit::timer::{TimerPart, TimerUnitAttr};
+use crate::unit::timer::TimerUnitAttr;
 use crate::unit::{BaseUnit, Unit};
 use crate::DRAGON_REACH_UNIT_DIR;
 use crate::{
@@ -148,7 +148,6 @@ lazy_static! {
         table.insert("ns", 1);
         table
     };
-
     pub static ref TIMER_UNIT_ATTR_TABLE: HashMap<&'static str, TimerUnitAttr> = {
         let mut map = HashMap::new();
         map.insert("OnActiveSec", TimerUnitAttr::OnActiveSec);

@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Read};
-use std::libc::c_str::CString;
+use std::io::Read;
 use std::os::fd::FromRawFd;
 use std::string::String;
 use std::sync::{Arc, Mutex};
@@ -10,7 +9,6 @@ use std::{eprint, eprintln, libc};
 
 use crate::error::ErrorFormat;
 use crate::manager::ctl_manager::CtlManager;
-use crate::manager::UnitManager;
 
 use super::ctl_parser::{CommandOperation, CtlParser, Pattern};
 use super::{ctl_path, DRAGON_REACH_CTL_PIPE};
@@ -29,6 +27,7 @@ pub struct Command {
 }
 
 impl Command {
+    #[allow(dead_code)]
     fn new(op: CommandOperation, patterns: Vec<Pattern>, args: Option<Vec<String>>) -> Self {
         Command {
             operation: op,
@@ -72,7 +71,7 @@ impl Systemctl {
             }
             match CtlParser::parse_ctl(&s) {
                 Ok(cmd) => {
-                    CtlManager::exec_ctl(cmd);
+                    let _ = CtlManager::exec_ctl(cmd);
                 }
                 Err(err) => {
                     eprintln!("parse tcl command error: {}", err.error_format());

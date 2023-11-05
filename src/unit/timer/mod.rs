@@ -1,11 +1,12 @@
 use super::BaseUnit;
 
-
+#[allow(dead_code)]
 pub struct TimerUnit {
     unit_base: BaseUnit,
     timer_part: TimerPart,
 }
 
+#[allow(dead_code)]
 pub struct TimerPart {
     on_active_sec: u64,
     on_boot_sec: u64,

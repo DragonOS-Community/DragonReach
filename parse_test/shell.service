@@ -1,8 +1,8 @@
 [Unit]
 Description=Shell
+After=http_server.service
 
 [Service]
 Type=simple
 ExecStart=/bin/shell.elf
-#Restart=always
-#RestartSec=500000
+Restart=always

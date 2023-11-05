@@ -1,6 +1,5 @@
 use lazy_static::lazy_static;
 use std::fs::File;
-use std::io::Write;
 use std::os::fd::FromRawFd;
 use std::string::String;
 use std::string::ToString;
