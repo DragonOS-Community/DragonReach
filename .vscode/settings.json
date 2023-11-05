@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml",
+        "./systemctl/Cargo.toml"
     ],
     "rust-analyzer.check.overrideCommand": [
         "make",

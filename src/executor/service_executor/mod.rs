@@ -12,7 +12,7 @@ use std::process::Command;
 use std::process::Stdio;
 use std::time::Duration;
 use std::vec::Vec;
-use std::{eprint, eprintln, print, println};
+use std::{eprint, eprintln};
 
 use super::{Executor, ExitStatus};
 
@@ -39,7 +39,7 @@ impl ServiceExecutor {
             // 如果有冲突项enable的时候，该unit不能启动
             let mutex = UnitManager::get_unit_with_id(u).unwrap();
             let unit = mutex.lock().unwrap();
-            if *unit.unit_base().state() == UnitState::Enabled {
+            if *unit.unit_base().state() == UnitState::Active {
                 eprintln!(
                     "{}: Service startup failed: conflict unit",
                     unit.unit_base().unit_part().description()
@@ -69,9 +69,9 @@ impl ServiceExecutor {
 
         match proc {
             Ok(p) => {
-                println!("Service running...");
+                // TODO: 打日志
                 //修改service状态
-                service.mut_unit_base().set_state(UnitState::Enabled);
+                service.unit_base_mut().set_state(UnitState::Active);
                 //启动成功后将Child加入全局管理的进程表
                 UnitManager::push_running(service.unit_id(), p);
                 //执行启动后命令
@@ -170,35 +170,12 @@ impl ServiceExecutor {
 
         // 关闭和此服务绑定的项目
         for bind in service.unit_base().unit_part().be_binded_by() {
-            UnitManager::kill_running(*bind);
+            UnitManager::try_kill_running(*bind);
         }
 
         //判断是否需要restart，需要则再次启动服务
         if service.service_part().restart().is_restart(&exit_status) {
-            let ns = service.service_part().restart_sec();
-            let binds = service.unit_base().unit_part().be_binded_by();
-            let binds = Vec::from(binds);
-            let id = service.unit_id();
-            if ns > 0 {
-                let cmds = service.service_part().exec_reload().clone();
-                TimerManager::push_timer(
-                    Duration::from_nanos(ns),
-                    move || {
-                        for cmd in &cmds {
-                            cmd.no_spawn()?;
-                        }
-                        Executor::exec(id)?;
-                        for bind in &binds {
-                            Executor::exec(*bind)?
-                        }
-                        Ok(())
-                    },
-                    service.unit_id(),
-                )
-            } else {
-                let _ = Self::exec_reload(service);
-                let _ = Executor::exec(id);
-            }
+            let _ = Self::restart(service);
             return;
         }
 
@@ -209,7 +186,41 @@ impl ServiceExecutor {
         }
 
         //停止服务后设置Unit状态
-        service.mut_unit_base().set_state(UnitState::Disabled);
+        service.unit_base_mut().set_state(UnitState::Inactive);
+    }
+
+    /// ## 重启Service
+    pub fn restart(service: &mut ServiceUnit) -> Result<(), RuntimeError> {
+        let ns = service.service_part().restart_sec();
+        let binds = service.unit_base().unit_part().be_binded_by();
+        let binds = Vec::from(binds);
+        let id = service.unit_id();
+        if ns > 0 {
+            let cmds = service.service_part().exec_reload().clone();
+            TimerManager::push_timer(
+                Duration::from_nanos(ns),
+                move || {
+                    for cmd in &cmds {
+                        cmd.no_spawn()?;
+                    }
+                    Executor::exec(id)?;
+                    for bind in &binds {
+                        Executor::restart(*bind)?
+                    }
+                    Ok(())
+                },
+                service.unit_id(),
+            )
+        } else {
+            UnitManager::try_kill_running(id);
+            Self::exec_reload(service)?;
+            eprintln!("restart");
+            Self::exec(service)?;
+            for bind in &binds {
+                Executor::restart(*bind)?;
+            }
+        }
+        Ok(())
     }
 
     /// ## 显示退出Service
@@ -224,13 +235,13 @@ impl ServiceExecutor {
             TimerManager::push_timer(
                 Duration::from_nanos(ns),
                 move || {
-                    if UnitManager::is_running_unit(&id) {
-                        UnitManager::kill_running(id);
-                    }
+                    UnitManager::try_kill_running(id);
                     Ok(())
                 },
                 service.unit_id(),
             )
+        } else {
+            UnitManager::try_kill_running(id);
         }
     }
 }

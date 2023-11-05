@@ -15,7 +15,7 @@ impl ServiceParser {
     ///
     /// @param path 需解析的文件路径
     ///
-    /// @return 成功则返回Ok(Rc<ServiceUnit>)，否则返回Err
+    /// @return 成功则返回Ok(id)，否则返回Err
     pub fn parse(path: &str) -> Result<usize, ParseError> {
         //预先检查是否存在循环依赖
         let mut graph = Graph::construct_graph(path.to_string())?;

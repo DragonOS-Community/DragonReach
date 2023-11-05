@@ -5,4 +5,3 @@ Description=Shell
 Type=simple
 ExecStart=/bin/shell.elf
 Restart=always
-RestartSec=5000

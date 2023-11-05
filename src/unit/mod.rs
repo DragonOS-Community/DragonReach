@@ -1,3 +1,7 @@
+use std::format;
+
+use std::string::ToString;
+
 use crate::error::parse_error::ParseError;
 use crate::error::parse_error::ParseErrorType;
 use crate::error::runtime_error::RuntimeError;
@@ -22,6 +26,7 @@ use std::vec::Vec;
 
 pub mod service;
 pub mod target;
+pub mod timer;
 
 use self::target::TargetUnit;
 
@@ -74,7 +79,7 @@ pub trait Unit: Sync + Send + Debug {
 
     fn unit_base(&self) -> &BaseUnit;
 
-    fn mut_unit_base(&mut self) -> &mut BaseUnit;
+    fn unit_base_mut(&mut self) -> &mut BaseUnit;
 
     fn unit_id(&self) -> usize;
 
@@ -88,30 +93,120 @@ pub trait Unit: Sync + Send + Debug {
     /// ### return OK(())/Err
     fn set_unit_id(&mut self) -> usize {
         let ret = generate_unit_id();
-        self.mut_unit_base().set_id(ret);
+        self.unit_base_mut().set_id(ret);
         ret
     }
 
     /// ## Unit退出后逻辑
     ///
     /// 一般只有可运行的Unit(如Service)需要重写此函数
-    fn after_exit(&mut self, _exit_status: ExitStatus) {}
+    fn after_exit(&mut self, _exit_status: ExitStatus) {
+        unimplemented!()
+    }
 
     /// ## 初始化Unit内任务的一些参数，各个Unit所需处理的不相同，故放在总的Unit trait
     fn init(&mut self) {}
 
     /// ## Unit的显式退出逻辑
     fn exit(&mut self);
+
+    fn set_unit_name(&mut self, name: String) {
+        self.unit_base_mut().unit_name = name;
+    }
+
+    /// ## Unit重启逻辑
+    fn restart(&mut self) -> Result<(), RuntimeError> {
+        unimplemented!()
+    }
 }
 
 //Unit状态
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UnitState {
-    Enabled,
-    Disabled,
-    Static,
+    Active,
+    Inactive,
+    Activating,
+    Deactivating,
+    Failed,
+    Reloading,
+    Maintenance,
+}
+
+impl ToString for UnitState {
+    fn to_string(&self) -> String {
+        match *self {
+            UnitState::Active => "active".to_string(),
+            UnitState::Inactive => "inactive".to_string(),
+            UnitState::Activating => "activeting".to_string(),
+            UnitState::Deactivating => "deactivating".to_string(),
+            UnitState::Failed => "failed".to_string(),
+            UnitState::Reloading => "reloading".to_string(),
+            UnitState::Maintenance => "maintenance".to_string(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum UnitSubState {
+    Running,
+    Waiting,
+    StartPre,
+    StartPost,
+    StopSigterm,
+    StopSigkill,
+    StopFinalSigterm,
+    StopFinalSigkill,
+    Dead,
+    AutoRestart,
+    Failed,
+    Activating,
+    Deactivating,
+    Plugged,
+    Unknown,
+}
+
+impl ToString for UnitSubState {
+    fn to_string(&self) -> String {
+        match *self {
+            UnitSubState::Running => "running".to_string(),
+            UnitSubState::Waiting => "waiting".to_string(),
+            UnitSubState::StartPre => "start-pre".to_string(),
+            UnitSubState::StartPost => "start-post".to_string(),
+            UnitSubState::StopSigterm => "stop-sigterm".to_string(),
+            UnitSubState::StopSigkill => "stop-sigkill".to_string(),
+            UnitSubState::StopFinalSigterm => "stop-final-sigterm".to_string(),
+            UnitSubState::StopFinalSigkill => "stop-final-sigkill".to_string(),
+            UnitSubState::Dead => "dead".to_string(),
+            UnitSubState::AutoRestart => "auto-restart".to_string(),
+            UnitSubState::Failed => "failed".to_string(),
+            UnitSubState::Activating => "activating".to_string(),
+            UnitSubState::Deactivating => "deactivating".to_string(),
+            UnitSubState::Plugged => "plugged".to_string(),
+            UnitSubState::Unknown => "unknown".to_string(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LoadState {
+    Loaded,
+    NotFound,
+    Error,
     Masked,
+}
+
+impl ToString for LoadState {
+    fn to_string(&self) -> String {
+        match *self {
+            LoadState::Loaded => "loaded".to_string(),
+            LoadState::NotFound => "not found".to_string(),
+            LoadState::Error => "error".to_string(),
+            LoadState::Masked => "maksed".to_string(),
+        }
+    }
 }
 
 //Unit类型
@@ -134,11 +229,15 @@ pub enum UnitType {
 }
 
 //记录unit文件基本信息，这个结构体里面的信息是所有Unit文件都可以有的属性
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct BaseUnit {
+    unit_name: String,
     unit_part: UnitPart,
     install_part: InstallPart,
     state: UnitState,
+    sub_state: UnitSubState,
+    load_state: LoadState,
     unit_type: UnitType,
     unit_id: usize,
 }
@@ -146,9 +245,12 @@ pub struct BaseUnit {
 impl Default for BaseUnit {
     fn default() -> Self {
         BaseUnit {
+            unit_name: String::new(),
             unit_part: UnitPart::default(),
             install_part: InstallPart::default(),
-            state: UnitState::Disabled,
+            state: UnitState::Inactive,
+            sub_state: UnitSubState::Unknown,
+            load_state: LoadState::Loaded,
             unit_type: UnitType::Unknown,
             unit_id: 0,
         }
@@ -207,6 +309,22 @@ impl BaseUnit {
 
     pub fn set_id(&mut self, id: usize) {
         self.unit_id = id;
+    }
+
+    pub fn unit_name(&self) -> String {
+        self.unit_name.clone()
+    }
+
+    /// ## Unit基本格式化信息
+    pub fn unit_info(&self) -> String {
+        format!(
+            "{}\t\t\t{}\t\t{}\t\t{}\t\t{}",
+            self.unit_name,
+            self.load_state.to_string(),
+            self.state.to_string(),
+            self.sub_state.to_string(),
+            self.unit_part.description
+        )
     }
 }
 

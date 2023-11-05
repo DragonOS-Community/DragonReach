@@ -578,97 +578,103 @@ impl UnitParseUtil {
     ///
     /// @return 解析成功则返回Ok(u64)，否则返回Err
     pub fn parse_sec(s: &str) -> Result<u64, ParseError> {
-        //下列参数分别记录整数部分，小数部分以及单位
-        let integer: u64;
-        let mut frac: u64 = 0;
-        let unit: &str;
+        let ss = s.split_whitespace().collect::<Vec<&str>>();
+        let mut ret = 0;
+        for s in ss {
+            //下列参数分别记录整数部分，小数部分以及单位
+            let integer: u64;
+            let mut frac: u64 = 0;
+            let unit: &str;
 
-        match s.find('.') {
-            Some(idx) => {
-                //解析整数部分
-                integer = match s[..idx].parse::<u64>() {
-                    Ok(val) => val,
-                    Err(_) => {
-                        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0))
-                    }
-                };
-                //获得小数+单位的字符串
-                let frac_and_unit = &s[(idx + 1)..];
-                match frac_and_unit.find(|c: char| !c.is_digit(10)) {
-                    Some(val) => {
-                        //匹配小数部分
-                        frac = match frac_and_unit[..val].parse::<u64>() {
-                            Ok(val) => val,
-                            Err(_) => {
-                                return Err(ParseError::new(
-                                    ParseErrorType::EINVAL,
-                                    String::new(),
-                                    0,
-                                ))
-                            }
-                        };
-                        //单位部分
-                        unit = &frac_and_unit[val..];
-                    }
-                    None => {
-                        //没有单位的情况，直接匹配小数
-                        frac = match frac_and_unit.parse::<u64>() {
-                            Ok(val) => val,
-                            Err(_) => {
-                                return Err(ParseError::new(
-                                    ParseErrorType::EINVAL,
-                                    String::new(),
-                                    0,
-                                ))
-                            }
-                        };
-                        unit = "";
-                    }
-                };
-            }
-            None => {
-                //没有小数点则直接匹配整数部分和单位部分
-                match s.find(|c: char| !c.is_digit(10)) {
-                    Some(idx) => {
-                        integer = match s[..idx].parse::<u64>() {
-                            Ok(val) => val,
-                            Err(_) => {
-                                return Err(ParseError::new(
-                                    ParseErrorType::EINVAL,
-                                    String::new(),
-                                    0,
-                                ))
-                            }
-                        };
-                        unit = &s[idx..];
-                    }
-                    None => {
-                        integer = match s.parse::<u64>() {
-                            Ok(val) => val,
-                            Err(_) => {
-                                return Err(ParseError::new(
-                                    ParseErrorType::EINVAL,
-                                    String::new(),
-                                    0,
-                                ))
-                            }
-                        };
-                        unit = "";
-                    }
-                };
-            }
-        };
+            match s.find('.') {
+                Some(idx) => {
+                    //解析整数部分
+                    integer = match s[..idx].parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => {
+                            return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0))
+                        }
+                    };
+                    //获得小数+单位的字符串
+                    let frac_and_unit = &s[(idx + 1)..];
+                    match frac_and_unit.find(|c: char| !c.is_digit(10)) {
+                        Some(val) => {
+                            //匹配小数部分
+                            frac = match frac_and_unit[..val].parse::<u64>() {
+                                Ok(val) => val,
+                                Err(_) => {
+                                    return Err(ParseError::new(
+                                        ParseErrorType::EINVAL,
+                                        String::new(),
+                                        0,
+                                    ))
+                                }
+                            };
+                            //单位部分
+                            unit = &frac_and_unit[val..];
+                        }
+                        None => {
+                            //没有单位的情况，直接匹配小数
+                            frac = match frac_and_unit.parse::<u64>() {
+                                Ok(val) => val,
+                                Err(_) => {
+                                    return Err(ParseError::new(
+                                        ParseErrorType::EINVAL,
+                                        String::new(),
+                                        0,
+                                    ))
+                                }
+                            };
+                            unit = "";
+                        }
+                    };
+                }
+                None => {
+                    //没有小数点则直接匹配整数部分和单位部分
+                    match s.find(|c: char| !c.is_digit(10)) {
+                        Some(idx) => {
+                            integer = match s[..idx].parse::<u64>() {
+                                Ok(val) => val,
+                                Err(_) => {
+                                    return Err(ParseError::new(
+                                        ParseErrorType::EINVAL,
+                                        String::new(),
+                                        0,
+                                    ))
+                                }
+                            };
+                            unit = &s[idx..];
+                        }
+                        None => {
+                            integer = match s.parse::<u64>() {
+                                Ok(val) => val,
+                                Err(_) => {
+                                    return Err(ParseError::new(
+                                        ParseErrorType::EINVAL,
+                                        String::new(),
+                                        0,
+                                    ))
+                                }
+                            };
+                            unit = "";
+                        }
+                    };
+                }
+            };
 
-        //从时间单位转换表中获取到单位转换为ns的倍数
-        let factor = match SEC_UNIT_TABLE.get(unit) {
-            Some(val) => val,
-            None => {
-                return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
-            }
-        };
+            //从时间单位转换表中获取到单位转换为ns的倍数
+            let factor = match SEC_UNIT_TABLE.get(unit) {
+                Some(val) => val,
+                None => {
+                    return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
+                }
+            };
+
+            ret += integer * factor + (frac * factor) / (10u64.pow(frac.to_string().len() as u32));
+        }
 
         //计算ns
-        return Ok(integer * factor + (frac * factor) / (10u64.pow(frac.to_string().len() as u32)));
+        return Ok(ret);
     }
     /// @brief 判断对应路径是否为目录
     ///
@@ -687,16 +693,18 @@ impl UnitParseUtil {
 
     ///// ## 通过文件名解析该Unit的类型
     pub fn parse_type(path: &str) -> UnitType {
+        let ret: &str;
         if let Some(index) = path.rfind('.') {
-            let result = &path[index + 1..];
-            match result {
-                "service" => return UnitType::Service,
-                "target" => return UnitType::Target,
-                //TODO: 添加文件类型
-                _ => return UnitType::Unknown,
-            }
+            ret = &path[index + 1..];
+        } else {
+            ret = path;
         }
-        UnitType::Unknown
+        match ret {
+            "service" => return UnitType::Service,
+            "target" => return UnitType::Target,
+            //TODO: 添加文件类型
+            _ => return UnitType::Unknown,
+        }
     }
 
     /// ## 将读取环境变量文件解析为环境变量集合
