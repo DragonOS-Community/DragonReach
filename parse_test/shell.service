@@ -1,6 +1,5 @@
 [Unit]
 Description=Shell
-After=http_server.service
 
 [Service]
 Type=simple
