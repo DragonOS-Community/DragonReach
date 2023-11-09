@@ -185,11 +185,6 @@ impl UnitManager {
             .insert(proc.id(), Mutex::new(proc));
     }
 
-    // 删除对应cmd的进程
-    pub fn remove_cmd_proc(id: u32) {
-        CMD_PROCESS_TABLE.write().unwrap().remove(&id);
-    }
-
     // 弹出指定id的cmd进程
     pub fn pop_cmd_proc(id: u32) -> Option<Mutex<Child>> {
         CMD_PROCESS_TABLE.write().unwrap().remove(&id)

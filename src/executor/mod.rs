@@ -98,7 +98,6 @@ impl Executor {
             if UnitManager::is_running_unit(&u) {
                 continue;
             }
-
             let mutex = UnitManager::get_unit_with_id(&u).unwrap();
             let mut after = mutex.lock().unwrap();
             after.run()?;
