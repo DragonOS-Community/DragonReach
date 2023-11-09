@@ -43,18 +43,24 @@ impl CmdTask {
             .args(&self.cmd)
             .current_dir(self.dir.clone())
             .envs(self.envs.clone())
-            .output();
+            .spawn();
+
         match result {
-            Ok(output) => {
-                print!("{}", String::from_utf8_lossy(&output.stdout));
-                eprint!("{}", String::from_utf8_lossy(&output.stderr));
-                if !output.status.success() {
-                    return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
+            Ok(mut child) => match child.wait() {
+                Ok(status) => {
+                    if !status.success() && !self.ignore {
+                        return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
+                    }
                 }
-            }
-            Err(err) => {
+                Err(_) => {
+                    if !self.ignore {
+                        return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
+                    }
+                }
+            },
+            Err(e) => {
                 if !self.ignore {
-                    eprintln!("{}: Command failed: {}", self.path, err);
+                    eprintln!("{}: Command failed: {}", self.path, e);
                     return Err(RuntimeError::new(RuntimeErrorType::ExecFailed));
                 }
             }

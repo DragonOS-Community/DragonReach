@@ -120,7 +120,7 @@ impl ServiceExecutor {
     fn exec_start_pre(service: &ServiceUnit) -> Result<(), RuntimeError> {
         let cmds = service.service_part().exec_start_pre();
         for cmd in cmds {
-            cmd.spawn()?;
+            cmd.no_spawn()?;
         }
         Ok(())
     }

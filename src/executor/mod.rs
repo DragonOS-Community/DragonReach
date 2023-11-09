@@ -59,7 +59,7 @@ impl Executor {
                     .unit_base_mut()
                     .set_state(UnitState::Active);
                 Ok(())
-            },
+            }
             Err(e) => {
                 let mutex = UnitManager::get_unit_with_id(&unit_id).unwrap();
                 let mut unit = mutex.lock().unwrap();
@@ -98,7 +98,6 @@ impl Executor {
             if UnitManager::is_running_unit(&u) {
                 continue;
             }
-
             let mutex = UnitManager::get_unit_with_id(&u).unwrap();
             let mut after = mutex.lock().unwrap();
             after.run()?;
