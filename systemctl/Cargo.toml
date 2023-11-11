@@ -13,4 +13,4 @@ path = "src/main.rs"
 cfg-if = { version = "1.0"}
 
 [target.'cfg(target_os = "dragonos")'.dependencies]
-drstd = {git = "https://github.com/DragonOS-Community/drstd.git", revision = "8b1e314e01"}
+drstd = {git = "https://git.mirrors.dragonos.org/DragonOS-Community/drstd.git", revision = "8b1e314e01"}
