@@ -5,4 +5,4 @@ Description=Shell
 Type=simple
 ExecStart=/bin/shell.elf
 Restart=always
-ExecStartPre=-/bin/dragonos_about
+#ExecStartPre=-/bin/dragonos_about
