@@ -3,6 +3,6 @@ Description=Shell
 
 [Service]
 Type=simple
-ExecStart=/bin/shell.elf
+ExecStart=/bin/NovaShell
 Restart=always
-ExecStartPre=-/bin/dragonos_about
+ExecStartPre=-/bin/about.elf
