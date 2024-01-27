@@ -1,18 +1,13 @@
 use lazy_static::lazy_static;
 use std::fs::File;
 use std::os::fd::FromRawFd;
-use std::string::String;
-use std::string::ToString;
-use std::sync::Arc;
-use std::{eprint, eprintln, format};
-use std::{libc, print, println};
-use std::{sync::Mutex, vec::Vec};
+use std::sync::{Arc, Mutex};
 
 use crate::error::runtime_error::RuntimeError;
 use crate::error::runtime_error::RuntimeErrorType;
 use crate::error::ErrorFormat;
 use crate::parse::parse_util::UnitParseUtil;
-use crate::systemctl::ctl_parser::Pattern;
+use crate::systemctl::ctl_parser::{CommandOperation, Pattern};
 use crate::systemctl::ctl_path;
 use crate::systemctl::listener::Command;
 use crate::unit::Unit;
@@ -32,82 +27,76 @@ impl CtlManager {
     pub fn exec_ctl(cmd: Command) -> Result<(), RuntimeError> {
         // TODO:目前假设一个时刻只有一个进程使用systemdctl,后续应该使用DBus等更灵活的进程通信方式
         match cmd.operation {
-            crate::systemctl::ctl_parser::CommandOperation::ListUnits => {
-                Self::list_unit(cmd.patterns)
-            }
-            crate::systemctl::ctl_parser::CommandOperation::Start => Self::start(cmd.args.unwrap()),
-            crate::systemctl::ctl_parser::CommandOperation::Restart => {
-                Self::restart(cmd.args.unwrap(), false)
-            }
-            crate::systemctl::ctl_parser::CommandOperation::Stop => Self::stop(cmd.args.unwrap()),
-            crate::systemctl::ctl_parser::CommandOperation::Reboot => Ok(Self::reboot()),
-            crate::systemctl::ctl_parser::CommandOperation::ListSockets => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ListTimers => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Reload => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::TryRestart => {
-                Self::restart(cmd.args.unwrap(), true)
-            }
-            crate::systemctl::ctl_parser::CommandOperation::ReloadOrRestart => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ReloadOrTryRestart => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Isolate => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Kill => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::IsActive => {
+            CommandOperation::ListUnits => Self::list_unit(cmd.patterns),
+            CommandOperation::Start => Self::start(cmd.args.unwrap()),
+            CommandOperation::Restart => Self::restart(cmd.args.unwrap(), false),
+            CommandOperation::Stop => Self::stop(cmd.args.unwrap()),
+            CommandOperation::Reboot => Ok(Self::reboot()),
+            CommandOperation::ListSockets => todo!(),
+            CommandOperation::ListTimers => todo!(),
+            CommandOperation::Reload => todo!(),
+            CommandOperation::TryRestart => Self::restart(cmd.args.unwrap(), true),
+            CommandOperation::ReloadOrRestart => todo!(),
+            CommandOperation::ReloadOrTryRestart => todo!(),
+            CommandOperation::Isolate => todo!(),
+            CommandOperation::Kill => todo!(),
+            CommandOperation::IsActive => {
                 let mut patterns = cmd.patterns.clone();
                 patterns.push(Pattern::State(UnitState::Active));
                 Self::list_unit(patterns)
             }
-            crate::systemctl::ctl_parser::CommandOperation::IsFailed => {
+            CommandOperation::IsFailed => {
                 let mut patterns = cmd.patterns.clone();
                 patterns.push(Pattern::State(UnitState::Failed));
                 Self::list_unit(patterns)
             }
-            crate::systemctl::ctl_parser::CommandOperation::Status => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Show => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Cat => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::SetProperty => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Help => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ResetFailed => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ListDependencies => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ListUnitFiles => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Enable => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Disable => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Reenable => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Preset => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::PresetAll => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::IsEnabled => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Mask => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::UnMask => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Link => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::AddWants => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::AddRequires => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Edit => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::GetDefault => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::SetDefault => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ListMachines => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ListJobs => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Cancel => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Snapshot => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Delete => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ShowEnvironment => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::SetEnvironment => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::UnsetEnvironment => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::ImportEnvironment => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::DeamonReload => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::DeamonReexec => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::IsSystemRunning => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Default => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Rescue => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Emergency => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Halt => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Poweroff => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Kexec => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Exit => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::SwitchRoot => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Suspend => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::Hibernate => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::HybridSleep => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::UnSupported => todo!(),
-            crate::systemctl::ctl_parser::CommandOperation::None => {
+            CommandOperation::Status => todo!(),
+            CommandOperation::Show => todo!(),
+            CommandOperation::Cat => todo!(),
+            CommandOperation::SetProperty => todo!(),
+            CommandOperation::Help => todo!(),
+            CommandOperation::ResetFailed => todo!(),
+            CommandOperation::ListDependencies => todo!(),
+            CommandOperation::ListUnitFiles => todo!(),
+            CommandOperation::Enable => todo!(),
+            CommandOperation::Disable => todo!(),
+            CommandOperation::Reenable => todo!(),
+            CommandOperation::Preset => todo!(),
+            CommandOperation::PresetAll => todo!(),
+            CommandOperation::IsEnabled => todo!(),
+            CommandOperation::Mask => todo!(),
+            CommandOperation::UnMask => todo!(),
+            CommandOperation::Link => todo!(),
+            CommandOperation::AddWants => todo!(),
+            CommandOperation::AddRequires => todo!(),
+            CommandOperation::Edit => todo!(),
+            CommandOperation::GetDefault => todo!(),
+            CommandOperation::SetDefault => todo!(),
+            CommandOperation::ListMachines => todo!(),
+            CommandOperation::ListJobs => todo!(),
+            CommandOperation::Cancel => todo!(),
+            CommandOperation::Snapshot => todo!(),
+            CommandOperation::Delete => todo!(),
+            CommandOperation::ShowEnvironment => todo!(),
+            CommandOperation::SetEnvironment => todo!(),
+            CommandOperation::UnsetEnvironment => todo!(),
+            CommandOperation::ImportEnvironment => todo!(),
+            CommandOperation::DeamonReload => todo!(),
+            CommandOperation::DeamonReexec => todo!(),
+            CommandOperation::IsSystemRunning => todo!(),
+            CommandOperation::Default => todo!(),
+            CommandOperation::Rescue => todo!(),
+            CommandOperation::Emergency => todo!(),
+            CommandOperation::Halt => todo!(),
+            CommandOperation::Poweroff => todo!(),
+            CommandOperation::Kexec => todo!(),
+            CommandOperation::Exit => todo!(),
+            CommandOperation::SwitchRoot => todo!(),
+            CommandOperation::Suspend => todo!(),
+            CommandOperation::Hibernate => todo!(),
+            CommandOperation::HybridSleep => todo!(),
+            CommandOperation::UnSupported => todo!(),
+            CommandOperation::None => {
                 println!("No such command!");
                 return Err(RuntimeError::new(RuntimeErrorType::InvalidInput));
             }
@@ -167,10 +156,7 @@ impl CtlManager {
     }
 
     pub fn reboot() {
-        #[cfg(target_os = "dragonos")]
-        unsafe {
-            dsc::syscall!(SYS_REBOOT)
-        };
+        unsafe { libc::syscall(libc::SYS_reboot, 0, 0, 0, 0, 0, 0) };
     }
 
     pub fn restart(names: Vec<String>, is_try: bool) -> Result<(), RuntimeError> {

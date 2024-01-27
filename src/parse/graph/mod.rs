@@ -1,11 +1,9 @@
+use std::io::BufRead;
+
 use crate::{
     error::parse_error::{ParseError, ParseErrorType},
     unit::UnitType,
 };
-
-use std::io::BufRead;
-use std::string::{String, ToString};
-use std::vec::Vec;
 
 use super::UnitParser;
 

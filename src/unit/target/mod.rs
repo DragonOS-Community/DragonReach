@@ -5,8 +5,6 @@ use crate::parse::Segment;
 
 use core::result::Result::{self, Ok};
 
-use std::marker::{Send, Sized, Sync};
-
 #[derive(Debug, Clone, Default)]
 pub struct TargetUnit {
     unit_base: BaseUnit,

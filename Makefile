@@ -1,50 +1,45 @@
-export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
-export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+# The toolchain we use.
+# You can get it by running DragonOS' `tools/bootstrap.sh`
+TOOLCHAIN="+nightly-2023-08-15-x86_64-unknown-linux_dragonos-gnu"
+RUSTFLAGS+="-C target-feature=+crt-static -C link-arg=-no-pie"
 
-OUTPUT_DIR = $(DADK_BUILD_CACHE_DIR_DRAGONREACH_0_1_0)
-REACH_ETC_DIR=$(OUTPUT_DIR)/etc/reach
-REACH_BIN_DIR=$(OUTPUT_DIR)/bin/
-TMP_INSTALL_DIR=$(OUTPUT_DIR)/tmp_install
+# 如果是在dadk中编译，那么安装到dadk的安装目录中
+INSTALL_DIR?=$(DADK_CURRENT_BUILD_DIR)
+# 如果是在本地编译，那么安装到当前目录下的install目录中
+INSTALL_DIR?=./install
 
-all: build
+
+run:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) run
 
 build:
 	@$(MAKE) -C ./systemctl build
-	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins build --target ./x86_64-unknown-dragonos.json --release
-
-install:
-	mkdir -p $(TMP_INSTALL_DIR)
-	mkdir -p $(REACH_ETC_DIR)
-	mkdir -p $(REACH_ETC_DIR)/system/
-	mkdir -p $(REACH_BIN_DIR)
-	mkdir -p $(REACH_ETC_DIR)/ipc/
-
-	cp ./parse_test/shell.service $(REACH_ETC_DIR)/system/shell.service
-
-	cargo +nightly-2023-08-15 -Z build-std=core,alloc,compiler_builtins install --target $(TARGET) --path .  --root $(TMP_INSTALL_DIR)
-	mv $(TMP_INSTALL_DIR)/bin/DragonReach $(REACH_BIN_DIR)/DragonReach
-	
-	cargo -Z build-std=core,alloc,compiler_builtins install --target $(TARGET) --path ./systemctl  --root $(TMP_INSTALL_DIR)
-	mv $(TMP_INSTALL_DIR)/bin/systemctl $(REACH_BIN_DIR)/systemctl
-	
-	rm -rf $(TMP_INSTALL_DIR)
-
-build-linux:
-	@$(MAKE) -C ./systemctl build-linux
-	cargo -Z build-std=core,alloc,compiler_builtins build --target x86_64-unknown-linux-gnu
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) build
 
 clean:
-	cargo clean
-	@$(MAKE) -C ./systemctl clean
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) clean
 
-fmt:
-	cargo fmt
-	@$(MAKE) -C ./systemctl fmt
+test:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) test
 
-fmt-check:
-	cargo fmt --check
-	@$(MAKE) -C ./systemctl fmt-check
+doc:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) doc
 
-check:
-	cargo -Z build-std=core,alloc,compiler_builtins check --workspace --message-format=json --target ./x86_64-unknown-dragonos.json
-	@$(MAKE) -C ./systemctl check
+run-release:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) run --release
+
+build-release:
+	@$(MAKE) -C ./systemctl build-release
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) build --release
+
+clean-release:
+	@$(MAKE) -C ./systemctl clean-release
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) clean --release
+
+test-release:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) test --release
+
+.PHONY: install
+install:
+	cp ./parse_test/shell.service $(INSTALL_DIR)/etc/reach/system/shell.service
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) install --path . --no-track --root $(INSTALL_DIR) --force

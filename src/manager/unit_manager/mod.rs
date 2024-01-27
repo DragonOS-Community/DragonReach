@@ -1,11 +1,8 @@
-use std::hash::{Hash, Hasher};
 use std::{
-    collections::hash_map::DefaultHasher,
-    collections::vec_deque::VecDeque,
-    print, println,
+    collections::{hash_map::DefaultHasher, VecDeque},
+    hash::{Hash, Hasher},
     process::Child,
     sync::{Arc, Mutex, RwLock},
-    vec::Vec,
 };
 
 use crate::unit::Unit;

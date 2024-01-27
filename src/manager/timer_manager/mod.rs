@@ -1,6 +1,7 @@
+use std::{sync::RwLock, time::Duration};
+
 use crate::{error::runtime_error::RuntimeError, time::timer::Timer};
 use lazy_static::lazy_static;
-use std::{boxed::Box, sync::RwLock, time::Duration, vec::Vec};
 
 lazy_static! {
     // 管理全局计时器任务

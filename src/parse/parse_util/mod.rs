@@ -1,14 +1,11 @@
+use std::{fs, io::BufRead, os::unix::fs::PermissionsExt, path::Path};
+
 use crate::{
     contants::{AF_INET, AF_INET6, IPV4_MIN_MTU, IPV6_MIN_MTU, PRIO_MAX, PRIO_MIN},
     error::{parse_error::ParseError, parse_error::ParseErrorType},
     task::cmdtask::CmdTask,
     unit::{service::ServiceUnit, target::TargetUnit, Unit, UnitType, Url},
     FileDescriptor,
-};
-
-use std::{
-    fs, io::BufRead, os::unix::prelude::PermissionsExt, path::Path, string::String,
-    string::ToString, vec, vec::Vec,
 };
 
 use super::{UnitParser, BASE_IEC, BASE_SI, SEC_UNIT_TABLE};
@@ -691,7 +688,7 @@ impl UnitParseUtil {
         return false;
     }
 
-    ///// ## 通过文件名解析该Unit的类型
+    /// ## 通过文件名解析该Unit的类型
     pub fn parse_type(path: &str) -> UnitType {
         let ret: &str;
         if let Some(index) = path.rfind('.') {

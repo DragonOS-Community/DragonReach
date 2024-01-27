@@ -1,6 +1,7 @@
-use std::format;
-
-use std::string::ToString;
+use std::any::Any;
+use std::fmt::Debug;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use crate::error::parse_error::ParseError;
 use crate::error::parse_error::ParseErrorType;
@@ -9,20 +10,6 @@ use crate::error::runtime_error::RuntimeError;
 use crate::executor::ExitStatus;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
-
-use std::any::Any;
-use std::default::Default;
-use std::fmt::Debug;
-use std::marker::{Send, Sized, Sync};
-
-use std::result::Result;
-use std::result::Result::Err;
-use std::result::Result::Ok;
-use std::string::String;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-
-use std::vec::Vec;
 
 pub mod service;
 pub mod target;
