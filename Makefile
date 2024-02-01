@@ -21,6 +21,12 @@ build-release:
 clean-release:
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) clean --release
 
+fmt:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) fmt
+
+fmt-check:
+	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) fmt --check
+
 .PHONY: install
 install:
 	mkdir -p $(INSTALL_DIR)/etc/reach/system
