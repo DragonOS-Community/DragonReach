@@ -9,37 +9,20 @@ INSTALL_DIR?=$(DADK_CURRENT_BUILD_DIR)
 INSTALL_DIR?=./install
 
 
-run:
-	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) run
-
 build:
-	@$(MAKE) -C ./systemctl build
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) build
 
 clean:
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) clean
 
-test:
-	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) test
-
-doc:
-	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) doc
-
-run-release:
-	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) run --release
-
 build-release:
-	@$(MAKE) -C ./systemctl build-release
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) build --release
 
 clean-release:
-	@$(MAKE) -C ./systemctl clean-release
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) clean --release
-
-test-release:
-	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) test --release
 
 .PHONY: install
 install:
+	mkdir -p $(INSTALL_DIR)/etc/reach/system
 	cp ./parse_test/shell.service $(INSTALL_DIR)/etc/reach/system/shell.service
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) install --path . --no-track --root $(INSTALL_DIR) --force
