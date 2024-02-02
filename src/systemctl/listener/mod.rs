@@ -92,7 +92,7 @@ impl Systemctl {
             let ret = unsafe { libc::mkfifo(path.as_ptr(), 0o666) };
             if ret != 0 {
                 // 创建管道失败打日志
-                panic!("create ctl pipe failed");
+                panic!("create ctl pipe failed, err: {ret}");
             }
         }
     }
