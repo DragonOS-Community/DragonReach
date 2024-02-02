@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::sync::{Arc, Mutex};
+
 use crate::error::parse_error::ParseErrorType;
 use crate::manager::UnitManager;
 use crate::unit::timer::TimerUnitAttr;
@@ -10,13 +14,6 @@ use crate::{
 
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use std::format;
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::string::String;
-use std::string::ToString;
-use std::sync::{Arc, Mutex};
-use std::vec::Vec;
 
 use self::parse_service::ServiceParser;
 use self::parse_target::TargetParser;

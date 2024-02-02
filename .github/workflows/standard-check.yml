@@ -51,4 +51,4 @@ jobs:
 
           - name: Build check
             run: |
-                  make all -j $(nproc)
+                  make build-release -j $(nproc)

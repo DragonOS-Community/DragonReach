@@ -1,12 +1,4 @@
-#![no_std]
-#![no_main]
-#![feature(slice_pattern)]
-#![feature(fn_traits)]
-
-#[cfg(target_os = "dragonos")]
-extern crate drstd as std;
-
-extern crate hashbrown;
+#![allow(non_snake_case)]
 
 mod contants;
 mod error;
@@ -18,15 +10,9 @@ mod task;
 mod time;
 mod unit;
 
-use std::{eprint, eprintln};
-
-use std::string::ToString;
-use std::vec::Vec;
-
 use error::ErrorFormat;
 use executor::Executor;
-use manager::timer_manager::TimerManager;
-use manager::Manager;
+use manager::{timer_manager::TimerManager, Manager};
 use parse::UnitParser;
 use systemctl::listener::Systemctl;
 
@@ -34,7 +20,6 @@ pub struct FileDescriptor(usize);
 
 const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
 
-#[no_mangle]
 fn main() {
     // 初始化
     Systemctl::init();
@@ -46,9 +31,8 @@ fn main() {
             if let Ok(entry) = entry {
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_file() {
-                        let filename = entry.file_name();
-                        let filename = filename.to_str().unwrap();
-                        units_file_name.push(filename.to_string());
+                        let filename = entry.file_name().to_str().unwrap().to_string();
+                        units_file_name.push(filename);
                     }
                 }
             }

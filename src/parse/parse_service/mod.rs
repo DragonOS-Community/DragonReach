@@ -4,8 +4,6 @@ use super::parse_util::UnitParseUtil;
 use crate::error::parse_error::ParseError;
 use crate::manager::UnitManager;
 
-use std::string::ToString;
-
 pub struct ServiceParser;
 
 impl ServiceParser {

@@ -1,11 +1,9 @@
-use lazy_static::lazy_static;
 use std::fs::{self, File};
 use std::io::Read;
 use std::os::fd::FromRawFd;
-use std::string::String;
 use std::sync::{Arc, Mutex};
-use std::vec::Vec;
-use std::{eprint, eprintln, libc};
+
+use lazy_static::lazy_static;
 
 use crate::error::ErrorFormat;
 use crate::manager::ctl_manager::CtlManager;

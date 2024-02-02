@@ -1,6 +1,4 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::vec::Vec;
+use std::sync::{Arc, Mutex};
 
 use crate::manager::UnitManager;
 use crate::{

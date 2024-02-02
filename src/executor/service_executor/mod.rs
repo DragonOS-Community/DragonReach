@@ -1,3 +1,8 @@
+use std::{
+    process::{Command, Stdio},
+    time::Duration,
+};
+
 use crate::{
     error::runtime_error::{RuntimeError, RuntimeErrorType},
     manager::{timer_manager::TimerManager, UnitManager},
@@ -7,12 +12,6 @@ use crate::{
         Unit, UnitState,
     },
 };
-
-use std::process::Command;
-use std::process::Stdio;
-use std::time::Duration;
-use std::vec::Vec;
-use std::{eprint, eprintln};
 
 use super::{Executor, ExitStatus};
 

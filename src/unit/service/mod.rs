@@ -9,9 +9,6 @@ use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
 use crate::task::cmdtask::CmdTask;
 
-use std::string::{String, ToString};
-
-use std::vec::Vec;
 #[derive(Clone, Debug)]
 pub struct ServiceUnit {
     unit_base: BaseUnit,
