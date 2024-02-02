@@ -1,10 +1,10 @@
 [package]
-name = "dragon_reach"
+name = "dragonreach"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "DragonReach"
+name = "dragonreach"
 path = "src/main.rs"
 
 [[bin]]

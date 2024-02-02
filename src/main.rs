@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 mod contants;
 mod error;
 mod executor;
