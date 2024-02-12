@@ -17,7 +17,7 @@ ifeq ($(ARCH), x86_64)
 else ifeq ($(ARCH), riscv64)
 	export RUST_TARGET=riscv64gc-unknown-linux-gnu
 else 
-# 默认为x86_86
+# 默认为x86_86，用于本地编译
 	export RUST_TARGET=x86_64-unknown-linux-musl
 endif
 

@@ -1,9 +1,7 @@
-cargo-features = ["per-package-target"]
 [package]
 name = "dragonreach"
 version = "0.1.0"
 edition = "2021"
-default-target = "x86_64-unknown-linux-musl"
 
 [[bin]]
 name = "dragonreach"
