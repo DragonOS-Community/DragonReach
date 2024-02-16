@@ -1,7 +1,6 @@
 {
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml",
-        "./systemctl/Cargo.toml"
     ],
     "rust-analyzer.checkOnSave": true
 }
