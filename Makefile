@@ -1,7 +1,7 @@
 # The toolchain we use.
 # You can get it by running DragonOS' `tools/bootstrap.sh`
 TOOLCHAIN="+nightly-2023-08-15-x86_64-unknown-linux-gnu"
-RUSTFLAGS+="-C target-feature=+crt-static -C link-arg=-no-pie"
+RUSTFLAGS+=""
 
 ifdef DADK_CURRENT_BUILD_DIR
 # 如果是在dadk中编译，那么安装到dadk的安装目录中
