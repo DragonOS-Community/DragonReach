@@ -5,4 +5,4 @@ Description=Shell
 Type=simple
 ExecStart=/bin/NovaShell
 Restart=always
-ExecStartPre=-/bin/about.elf
+ExecStartPre=-/bin/about
