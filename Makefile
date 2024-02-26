@@ -46,5 +46,4 @@ fmt-check:
 install:
 	mkdir -p $(INSTALL_DIR)/etc/reach/system
 	mkdir -p $(INSTALL_DIR)/etc/reach/ipc
-	cp ./parse_test/shell.service $(INSTALL_DIR)/etc/reach/system/shell.service
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) install --target $(RUST_TARGET) --path . --no-track --root $(INSTALL_DIR) --force
