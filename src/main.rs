@@ -15,8 +15,8 @@ use systemctl::listener::Systemctl;
 
 pub struct FileDescriptor(usize);
 
-// const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
-const DRAGON_REACH_UNIT_DIR: &'static str = "/home/fz/testSystemd/";
+const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
+//const DRAGON_REACH_UNIT_DIR: &'static str = "/home/fz/testSystemd/";
 
 fn main() {
     // 初始化
