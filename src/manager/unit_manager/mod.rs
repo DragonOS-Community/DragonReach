@@ -144,7 +144,7 @@ impl UnitManager {
     pub fn pop_a_idle_service() -> Option<Arc<Mutex<dyn Unit>>> {
         let id = IDLE_SERVIEC_DEQUE.lock().unwrap().pop_front();
         match id {
-            Some(id) => { 
+            Some(id) => {
                 return Self::get_unit_with_id(&id);
             }
             None => {

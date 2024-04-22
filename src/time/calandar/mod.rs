@@ -1,17 +1,16 @@
-
 //use crate::error::parse_error::ParseError;
 
-#[derive(Debug,Default,Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct CalendarComponent {
     // start: usize,
     // stop: usize,
     // repeat: usize,
     // next: Arc<CalendarComponent>,//暂时不清楚为什么要链式设计
 }
-#[derive(Debug,Default,Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct CalendarStandard {
     //@brief 星期几
-   // weekdays_bits: Vec<WeekdayBits>,
+    // weekdays_bits: Vec<WeekdayBits>,
     // year: usize,
     // month:  usize,
     // day: usize,
@@ -38,7 +37,7 @@ pub struct CalendarStandard {
 // 且暂不支持"*"，
 // pub fn parse_calendar(s: &str) -> Result<CalendarStandard, String> {
 //     // Weekbits YYYY-MM-DD HH:mm:SS ,目前只支持Weekbits用","隔开
-    
+
 // //      OnCalendar=*-*-* 00:00:00：每天的午夜触发。
 // //      OnCalendar=*-*-* 08:00:00：每天早上8点触发。
 // //      OnCalendar=Mon,Tue,Wed *-*-* 12:00:00：每周一、周二和周三的中午12点触发。
@@ -50,7 +49,6 @@ pub struct CalendarStandard {
 //          return Err("Invalid calendar format".to_string());
 //      }
 //      let mut index:usize=0;
-
 
 //     let mut calendar = CalendarStandard {
 //         weekdays_bits: Vec::default(),
@@ -99,7 +97,6 @@ pub struct CalendarStandard {
 //       let year = iter.next().unwrap().parse::<i32>().unwrap(); // 提取年并转换为i32类型
 //       let month = iter.next().unwrap().parse::<i32>().unwrap(); // 提取月并转换为i32类型
 //       let day = iter.next().unwrap().parse::<i32>().unwrap(); // 提取日并转换为i32类型
-
 
 //     Ok(calendar)
 // }

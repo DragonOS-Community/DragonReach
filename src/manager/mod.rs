@@ -47,11 +47,12 @@ impl Manager {
 
             // 取消该任务的定时器任务
             TimerManager::cancel_timer(tmp.0);
-            
+
             let _ = UnitManager::get_unit_with_id(&tmp.0)
-                 .unwrap()
-                 .lock().unwrap()
-                 .exit();//交付给相应类型的Unit类型去执行退出后的逻辑
+                .unwrap()
+                .lock()
+                .unwrap()
+                .exit(); //交付给相应类型的Unit类型去执行退出后的逻辑
 
                // 交付处理子进程退出逻辑
             let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();

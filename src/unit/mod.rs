@@ -267,7 +267,7 @@ impl BaseUnit {
         attr_type: &InstallUnitAttr,
         val: &str,
     ) -> Result<(), ParseError> {
-        return  self.install_part.set_attr(attr_type, val);
+        return self.install_part.set_attr(attr_type, val);
     }
 
     pub fn parse_and_set_attribute(&self) -> Result<(), ParseError> {

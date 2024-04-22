@@ -44,7 +44,8 @@ impl Default for ServiceType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RestartOption {//ServiceRestart
+pub enum RestartOption {
+    //ServiceRestart
     AlwaysRestart, //总是重启
     OnSuccess,     //在该服务正常退出时
     OnFailure,     //在该服务启动失败时
@@ -214,9 +215,8 @@ impl Unit for ServiceUnit {
 
     fn exit(&mut self) {
         ServiceExecutor::exit(self);
-       //改变计时器内部状态
-       TimerManager::adjust_timevalue(&self.unit_id(),false);
-
+        //改变计时器内部状态
+        TimerManager::adjust_timevalue(&self.unit_id(), false);
     }
 
     fn restart(&mut self) -> Result<(), RuntimeError> {
@@ -248,7 +248,8 @@ unsafe impl Sync for ServiceUnit {}
 
 unsafe impl Send for ServiceUnit {}
 
-pub enum ServiceUnitAttr {//ServiceExecCommand+
+pub enum ServiceUnitAttr {
+    //ServiceExecCommand+
     None,
     //Service段
     //定义启动时的进程行为
