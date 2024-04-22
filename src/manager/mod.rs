@@ -21,7 +21,6 @@ impl Manager {
             match proc.try_wait() {
                 //进程正常退出
                 Ok(Some(status)) => {
-                    //TODO:交付给相应类型的Unit类型去执行退出后的逻辑
                     exited_unit.push((
                         *unit.0,
                         ExitStatus::from_exit_code(status.code().unwrap_or(0)),
@@ -49,7 +48,13 @@ impl Manager {
             // 取消该任务的定时器任务
             TimerManager::cancel_timer(tmp.0);
 
-            // 交付处理子进程退出逻辑
+            let _ = UnitManager::get_unit_with_id(&tmp.0)
+                .unwrap()
+                .lock()
+                .unwrap()
+                .exit(); //交付给相应类型的Unit类型去执行退出后的逻辑
+
+               // 交付处理子进程退出逻辑
             let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();
             unit.lock().unwrap().after_exit(tmp.1);
         }

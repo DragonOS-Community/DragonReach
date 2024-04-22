@@ -9,14 +9,14 @@ mod time;
 mod unit;
 
 use error::ErrorFormat;
-use executor::Executor;
 use manager::{timer_manager::TimerManager, Manager};
 use parse::UnitParser;
 use systemctl::listener::Systemctl;
 
 pub struct FileDescriptor(usize);
 
-const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
+// const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
+const DRAGON_REACH_UNIT_DIR: &'static str = "/home/fz/testSystemd/";
 
 fn main() {
     // 初始化
@@ -39,7 +39,7 @@ fn main() {
 
     //启动服务
     for path in units_file_name {
-        let id = match UnitParser::from_path(&path) {
+        let _ = match UnitParser::from_path(&path) {
             Ok(id) => id,
             Err(e) => {
                 eprintln!("Err:{}", e.error_format());
@@ -47,11 +47,12 @@ fn main() {
             }
         };
 
-        if id != 0 {
-            if let Err(e) = Executor::exec(id) {
-                eprintln!("Err:{}", e.error_format());
-            }
-        }
+        //     if id != 0 &&  TimerManager::is_timer(&id){
+        //         if let Err(e) = Executor::exec(id) {
+        //             eprintln!("Err:{}", e.error_format());
+        //         }
+        //     }
+        // }
     }
 
     // 启动完服务后进入主循环

@@ -4,6 +4,7 @@ use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
 use crate::executor::service_executor::ServiceExecutor;
 use crate::executor::ExitStatus;
 
+use crate::manager::timer_manager::TimerManager;
 use crate::parse::parse_service::ServiceParser;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};
@@ -44,6 +45,7 @@ impl Default for ServiceType {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RestartOption {
+    //ServiceRestart
     AlwaysRestart, //总是重启
     OnSuccess,     //在该服务正常退出时
     OnFailure,     //在该服务启动失败时
@@ -213,6 +215,8 @@ impl Unit for ServiceUnit {
 
     fn exit(&mut self) {
         ServiceExecutor::exit(self);
+        //改变计时器内部状态
+        TimerManager::adjust_timevalue(&self.unit_id(), false);
     }
 
     fn restart(&mut self) -> Result<(), RuntimeError> {
@@ -234,7 +238,9 @@ impl ServiceUnit {
     }
 
     fn exec(&mut self) -> Result<(), RuntimeError> {
-        ServiceExecutor::exec(self)
+        let _ = ServiceExecutor::exec(self);
+        //TimerManager::adjust_timevalue(&self.unit_id(), true);
+        Ok(())
     }
 }
 
@@ -243,6 +249,7 @@ unsafe impl Sync for ServiceUnit {}
 unsafe impl Send for ServiceUnit {}
 
 pub enum ServiceUnitAttr {
+    //ServiceExecCommand+
     None,
     //Service段
     //定义启动时的进程行为

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::error::runtime_error::RuntimeError;
+use crate::{error::runtime_error::RuntimeError, unit::timer::TimerUnit};
 
 /// 伪定时器，结合主循环来实现计时,在计时器触发时，会执行相应的cmd命令
 /// 后续实现线程后，应使用线程实现
@@ -17,11 +17,13 @@ pub struct Timer {
 
 impl Timer {
     /// ## 创建计时任务
+    //要new一个unit！！，查询id命名规则
     pub fn new(
         duration: Duration,
         callback: Box<dyn FnMut() -> Result<(), RuntimeError> + Send + Sync + 'static>,
         parent: usize,
     ) -> Self {
+        let _timerunit = TimerUnit::default();
         Timer {
             instant: Instant::now(),
             callback: callback,
@@ -34,7 +36,7 @@ impl Timer {
     ///
     /// ### return 到时返回true,否则返回false
     pub fn check(&mut self) -> bool {
-        //println!("{},{}",self.instant.elapsed().as_micros(),self.duration.as_micros());
+        // println!("{},{}",self.instant.elapsed().as_micros(),self.duration.as_micros());
         if self.instant.elapsed().saturating_sub(self.duration) > Duration::ZERO {
             // TODO: 未进行错误处理
             if let Err(_e) = (self.callback)() {
