@@ -17,12 +17,14 @@ use lazy_static::lazy_static;
 
 use self::parse_service::ServiceParser;
 use self::parse_target::TargetParser;
+use self::parse_timer::TimerParser;
 use self::parse_util::UnitParseUtil;
 
 pub mod graph;
 pub mod parse_service;
 pub mod parse_target;
 pub mod parse_util;
+pub mod parse_timer;
 
 //对应Unit段类型
 #[derive(PartialEq, Clone, Copy)]
@@ -31,6 +33,7 @@ pub enum Segment {
     Unit,
     Install,
     Service,
+    Timer,
 }
 
 lazy_static! {
@@ -42,8 +45,8 @@ lazy_static! {
         table.insert("path", UnitType::Path);
         table.insert("scope", UnitType::Scope);
         table.insert("service", UnitType::Service);
-        table.insert("slice", UnitType::Automount);
-        table.insert("automount", UnitType::Slice);
+        table.insert("slice", UnitType::Automount);//疑似copy错了,稍后修改
+        table.insert("automount", UnitType::Slice);//
         table.insert("socket", UnitType::Socket);
         table.insert("swap", UnitType::Swap);
         table.insert("target", UnitType::Target);
@@ -55,6 +58,8 @@ lazy_static! {
         table.insert("[Unit]", Segment::Unit);
         table.insert("[Install]", Segment::Install);
         table.insert("[Service]", Segment::Service);
+        table.insert("[Timer]", Segment::Timer);
+        // 后续再添加需求的具体字段
         table
     };
     pub static ref INSTALL_UNIT_ATTR_TABLE: HashMap<&'static str, InstallUnitAttr> = {
@@ -147,10 +152,12 @@ lazy_static! {
     };
     pub static ref TIMER_UNIT_ATTR_TABLE: HashMap<&'static str, TimerUnitAttr> = {
         let mut map = HashMap::new();
+        // map.insert("State", TimerUnitAttr::State);
+        // map.insert("Result", TimerUnitAttr::Result);
         map.insert("OnActiveSec", TimerUnitAttr::OnActiveSec);
         map.insert("OnBootSec", TimerUnitAttr::OnBootSec);
         map.insert("OnStartupSec", TimerUnitAttr::OnStartUpSec);
-        map.insert("OnUnitActiveSec", TimerUnitAttr::OnUnitInactiveSec);
+        map.insert("OnUnitActiveSec", TimerUnitAttr::OnUnitActiveSec);
         map.insert("OnUnitInactiveSec", TimerUnitAttr::OnUnitInactiveSec);
         map.insert("OnCalendar", TimerUnitAttr::OnCalendar);
         map.insert("AccuracySec", TimerUnitAttr::AccuarcySec);
@@ -216,6 +223,7 @@ impl UnitParser {
         match unit_type {
             UnitType::Service => ServiceParser::parse(path),
             UnitType::Target => TargetParser::parse(path),
+            UnitType::Timer=>TimerParser::parse(path),//新实现的timer_unit
             _ => Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0)),
         }
     }
@@ -317,7 +325,7 @@ impl UnitParser {
                 }
             };
             //首先匹配所有unit文件都有的unit段和install段
-            if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {
+            if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {//匹配Unit字段
                 if segment != Segment::Unit {
                     return Err(ParseError::new(
                         ParseErrorType::EINVAL,
@@ -333,7 +341,8 @@ impl UnitParser {
                     e.set_linenum(i + 1);
                     return Err(e);
                 }
-            } else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {
+            } 
+            else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {//匹配Install字段
                 if segment != Segment::Install {
                     return Err(ParseError::new(
                         ParseErrorType::EINVAL,

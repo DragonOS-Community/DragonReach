@@ -2,9 +2,9 @@ use std::{fs, io::BufRead, os::unix::fs::PermissionsExt, path::Path};
 
 use crate::{
     contants::{AF_INET, AF_INET6, IPV4_MIN_MTU, IPV6_MIN_MTU, PRIO_MAX, PRIO_MIN},
-    error::{parse_error::ParseError, parse_error::ParseErrorType},
+    error::parse_error::{ParseError, ParseErrorType},
     task::cmdtask::CmdTask,
-    unit::{service::ServiceUnit, target::TargetUnit, Unit, UnitType, Url},
+    unit::{service::ServiceUnit, target::TargetUnit, timer::TimerUnit, Unit, UnitType, Url},
     FileDescriptor,
 };
 
@@ -453,6 +453,7 @@ impl UnitParseUtil {
             //TODO: 目前为递归，后续应考虑从DragonReach管理的Unit表中寻找是否有该Unit，并且通过记录消除递归
             "service" => UnitParser::parse::<ServiceUnit>(path, UnitType::Service)?,
             "target" => UnitParser::parse::<TargetUnit>(path, UnitType::Target)?,
+            "timer" => UnitParser::parse::<TimerUnit>(path, UnitType::Timer)?,
             _ => {
                 return Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0));
             }
@@ -699,6 +700,7 @@ impl UnitParseUtil {
         match ret {
             "service" => return UnitType::Service,
             "target" => return UnitType::Target,
+            "timer" => return UnitType::Timer,
             //TODO: 添加文件类型
             _ => return UnitType::Unknown,
         }

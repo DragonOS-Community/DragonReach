@@ -158,7 +158,7 @@ lazy_static! {
         let mut map = HashMap::new();
         map.insert("list-units", CommandOperation::ListUnits);
         map.insert("list-sockets", CommandOperation::UnSupported);
-        map.insert("list-timers", CommandOperation::UnSupported);
+        map.insert("list-timers", CommandOperation::ListTimers);
         map.insert("start", CommandOperation::Start);
         map.insert("stop", CommandOperation::Stop);
         map.insert("reload", CommandOperation::UnSupported);
