@@ -17,8 +17,8 @@ use crate::executor::Executor;
 
 pub struct FileDescriptor(usize);
 
-// const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
-const DRAGON_REACH_UNIT_DIR: &'static str = "/home/fz/testSystemd/";
+const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
+//const DRAGON_REACH_UNIT_DIR: &'static str = "/home/fz/testSystemd/";
 
 fn main() {
     // 初始化
@@ -48,7 +48,6 @@ fn main() {
                 0
             }
         };
-        println!("Parse {} success!", path);
         if id == 1 {
             if let Err(e) = Executor::exec(id) {
                 eprintln!("Err:{}", e.error_format());
@@ -60,6 +59,7 @@ fn main() {
         //         }
         //     }
         // }
+       println!("Parse {} success!", path);
     }
 
     // 启动完服务后进入主循环
