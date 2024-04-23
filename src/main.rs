@@ -45,9 +45,8 @@ fn main() {
                 eprintln!("Err:{}", e.error_format());
                 0
             }
-        println!("Parse {} success!",path);
         };
-
+        println!("Parse {} success!",path);
         //     if id != 0 &&  TimerManager::is_timer(&id){
         //         if let Err(e) = Executor::exec(id) {
         //             eprintln!("Err:{}", e.error_format());
