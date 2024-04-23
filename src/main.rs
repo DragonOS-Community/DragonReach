@@ -45,6 +45,7 @@ fn main() {
                 eprintln!("Err:{}", e.error_format());
                 0
             }
+        println!("Parse {} success!",path);
         };
 
         if id != 0 {
