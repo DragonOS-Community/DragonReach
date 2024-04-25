@@ -15,15 +15,17 @@ lazy_static! {
     // 管理全局计时器任务
     static ref TIMER_TASK_MANAGER:RwLock<TimerManager> = RwLock::new(TimerManager {
         inner_timers: Vec::new(),
-        inner_timers_map: RwLock::new(HashMap::new()),
-        id_table:RwLock::new(Vec::new())//.0是TimerUnit的id,.1是父Unit的id
+        timer_unit_map: RwLock::new(HashMap::new()),
+
+        id_table:RwLock::new(Vec::new())
     });
 }
 
 pub struct TimerManager {
     inner_timers: Vec<Timer>,
-    inner_timers_map: RwLock<HashMap<usize, Arc<Mutex<TimerUnit>>>>,
-    id_table: RwLock<Vec<(usize, usize)>>,
+    timer_unit_map: RwLock<HashMap<usize, Arc<Mutex<TimerUnit>>>>, //id->TimerUnit
+    id_table: RwLock<Vec<(usize, usize)>>, //.0是TimerUnit的id,.1是父Unit的id
+                                           //timer_event_table:
 }
 
 impl<'a> IntoIterator for &'a mut TimerManager {
@@ -62,7 +64,7 @@ impl TimerManager {
             .push((unit_id, unit_.get_parent_unit()));
         drop(unit_);
         timemanager
-            .inner_timers_map
+            .timer_unit_map
             .write()
             .unwrap()
             .insert(unit_id, unit); //加入到inner_timers_map
@@ -80,17 +82,18 @@ impl TimerManager {
         let reader = TIMER_TASK_MANAGER.read().unwrap();
 
         let mut inactive_unit: Vec<usize> = Vec::new();
-        for (_, timer_unit) in reader.inner_timers_map.read().unwrap().iter() {
+        for (_, timer_unit) in reader.timer_unit_map.read().unwrap().iter() {
             let mut timer_unit = timer_unit.lock().unwrap();
             if timer_unit.enter_inactive() {
                 inactive_unit.push(timer_unit.unit_id());
                 continue;
             }
             if timer_unit.check() {
-                let _ = timer_unit.run(); //运行作出相应操作
+                let _ = timer_unit._run(); //运行作出相应操作
                 let id = timer_unit.get_parent_unit();
+                //timer_unit.mut_timer_part().update_next_trigger();
                 drop(timer_unit);
-                TimerManager::adjust_timevalue(&id, true);
+                TimerManager::update_next_trigger(id, true);
             }
         }
 
@@ -125,31 +128,32 @@ impl TimerManager {
         false
     }
     /// unit_id:父unit的id  flag:1为exec 0为exit
-    pub fn adjust_timevalue(unit_id: &usize, flag: bool /*1为启动0为退出 */) {
-        let manager: std::sync::RwLockReadGuard<'_, TimerManager> =
-            TIMER_TASK_MANAGER.read().unwrap();
+    fn adjust_timevalue(unit_id: &usize, flag: bool /*1为启动0为退出 */) -> Vec<usize> {
+        let mut result = Vec::new();
+        let manager = TIMER_TASK_MANAGER.read().unwrap();
 
         for (self_id, parent_id) in manager.id_table.read().unwrap().iter() {
             if unit_id == parent_id {
-                manager
-                    .inner_timers_map
+                let timer_unit_map = manager
+                    .timer_unit_map
                     .read()
-                    .unwrap()
-                    .get(self_id)
+                    .unwrap();
+                let  mut timer_unit=timer_unit_map.get(self_id)
                     .unwrap()
                     .lock()
-                    .unwrap()
-                    .change_stage(flag)
+                    .unwrap();
+                timer_unit.change_stage(flag);
+                result.push(*self_id);
             }
         }
-        //get(unit_id).unwrap().lock().unwrap().change_stage(flag)
+        result
     }
 
     /// 从Timer表中删除该Unit
     pub fn remove_timer_unit(unit_id: usize) {
         let manager = TIMER_TASK_MANAGER.read().unwrap();
 
-        manager.inner_timers_map.write().unwrap().remove(&unit_id);
+        manager.timer_unit_map.write().unwrap().remove(&unit_id);
         let index: usize = 0;
         let mut id_table = manager.id_table.write().unwrap();
         for (self_id, _) in id_table.iter() {
@@ -159,5 +163,34 @@ impl TimerManager {
                 return;
             }
         }
+    }
+
+    /// 获得该id下的所有计时器
+    pub fn get_timer(parent_id: usize) -> Vec<usize> {
+        let mut result = Vec::new();
+        let timer_manager = TIMER_TASK_MANAGER.read().unwrap();
+        let reader = timer_manager.id_table.read().unwrap();
+        for (timer_id, id) in reader.iter() {
+            if *id == parent_id {
+                result.push(*timer_id);
+            }
+        }
+        result
+    }
+    ///此时传入的是parent_id
+    pub fn update_next_trigger(unit_id: usize, flag: bool) {
+        let timer_vec = Self::adjust_timevalue(&unit_id, flag);
+
+        let timer_manager = TIMER_TASK_MANAGER.read().unwrap();
+        let timer_unit_map = timer_manager.timer_unit_map.read().unwrap();
+        timer_vec.iter().for_each(|id| {
+            timer_unit_map
+                .get(id)
+                .unwrap()
+                .lock()
+                .unwrap()
+                .mut_timer_part()
+                .update_next_trigger();
+        });
     }
 }

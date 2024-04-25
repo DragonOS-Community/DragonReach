@@ -216,7 +216,6 @@ impl Unit for ServiceUnit {
     fn exit(&mut self) {
         ServiceExecutor::exit(self);
         //改变计时器内部状态
-        TimerManager::adjust_timevalue(&self.unit_id(), false);
     }
 
     fn restart(&mut self) -> Result<(), RuntimeError> {
@@ -239,7 +238,6 @@ impl ServiceUnit {
 
     fn exec(&mut self) -> Result<(), RuntimeError> {
         let _ = ServiceExecutor::exec(self);
-        //TimerManager::adjust_timevalue(&self.unit_id(), true);
         Ok(())
     }
 }

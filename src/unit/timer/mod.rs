@@ -139,14 +139,11 @@ impl Unit for TimerUnit {
 
     fn run(&mut self) -> Result<(), RuntimeError> {
         //TODO!! 错误检查
-        let part = &mut self.timer_part;
-        part.now_time = Instant::now();
-        //println!("Prepared to run");
-        //检查Timer管理的unit是否存在
-        if UnitManager::contains_id(&part.unit) {
+        if self.check() &&  UnitManager::contains_id(&self.timer_part.unit)  {
             let _ = self._run(); //运行作出相应操作
-            return Ok(());
-        } else {
+            let id = self.get_parent_unit();
+            TimerManager::update_next_trigger(id, true);
+        }else if !UnitManager::contains_id(&self.timer_part.unit) {
             println!("task error,unit does not exist")
         };
         return Ok(());
@@ -158,7 +155,7 @@ impl Unit for TimerUnit {
     }
 }
 impl TimerUnit {
-    fn _run(&mut self) -> Result<(), RuntimeError> {
+    pub fn _run(&mut self) -> Result<(), RuntimeError> { //到这里触发计时器对应的服务
         let part = &mut self.timer_part;
         if part.value.is_empty() {
             //触发次数已尽
@@ -196,15 +193,6 @@ impl TimerUnit {
             return false;
         }
         part.now_time = Instant::now();
-        //检查下一个触发的TimerVal是不是disable
-        //   println!("now time:{},next elapse time:{:?}",part.now_time.elapsed().as_micros(),part.next_elapse_monotonic_or_boottime);
-        if part.update_next_trigger() {
-            self.unit_base.state = UnitState::Active;
-        } else if part.value.len() == 0 {
-            self.unit_base.state = UnitState::Inactive; //计时器里不再有值
-        } else {
-            self.unit_base.state = UnitState::Deactivating;
-        }
         //计时器不可用
         if self.unit_base.state == UnitState::Deactivating
             || self.unit_base.state == UnitState::Inactive
@@ -220,7 +208,7 @@ impl TimerUnit {
 
             //检查Timer管理的unit是否存在
             if let Some(_) = UnitManager::get_unit_with_id(&part.unit) {
-                // let _ = unit.lock().unwrap().run();//运行作出相应操作
+                // let _ = unit.lock().unwrap().run();//运行作出相应操作,check不负责此操作
                 return true;
             }
             println!("task error,unit does not exist");
@@ -383,7 +371,7 @@ impl Default for TimerPart {
 
 impl TimerPart {
     /// 更新下一次的触发时间
-    pub fn update_next_trigger(&mut self) -> bool {
+    pub fn update_next_trigger(&mut self) {
         self.now_time = Instant::now();
 
         //let unit_is_running=UnitManager::is_running_unit(&self.unit);
@@ -403,7 +391,7 @@ impl TimerPart {
                         self.next_elapse_monotonic_or_boottime = val.next_elapse.unwrap();
                         val.next_elapse = Some(self.now_time + val.val);
                         // println!("Update the time!");
-                        return true;
+                        return ;
                     }
                 }
 
@@ -411,7 +399,7 @@ impl TimerPart {
                     if val.next_elapse.unwrap() < self.now_time {
                         self.next_elapse_monotonic_or_boottime = val.next_elapse.unwrap();
                         self.value.remove(index); //在这一步准备把iter从value里弹出去
-                        return true;
+                        return ;
                     }
                 }
                 //TimerUnitAttr::OnStartUpSec => todo!(),
@@ -430,13 +418,13 @@ impl TimerPart {
     });
         if self.value.is_empty() || self.value[0].next_elapse == None {
             //计时器里面已经没有值了
-            return false;
+            return;
         }
 
         // 从已排序的Vec中获取最早的定时器时间
         self.next_elapse_monotonic_or_boottime = self.value[0].next_elapse.unwrap();
 
-        return true;
+        return ;
     }
     pub fn set_attr(&mut self, attr: &TimerUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {

@@ -54,6 +54,9 @@ impl Manager {
                 .unwrap()
                 .exit(); //交付给相应类型的Unit类型去执行退出后的逻辑
 
+                TimerManager::update_next_trigger(tmp.0,false); //更新所有归属于此unit的计时器
+            
+
                // 交付处理子进程退出逻辑
             let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();
             unit.lock().unwrap().after_exit(tmp.1);
