@@ -4,7 +4,6 @@ use crate::error::{parse_error::ParseError, parse_error::ParseErrorType};
 use crate::executor::service_executor::ServiceExecutor;
 use crate::executor::ExitStatus;
 
-use crate::manager::timer_manager::TimerManager;
 use crate::parse::parse_service::ServiceParser;
 use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::{Segment, SERVICE_UNIT_ATTR_TABLE};

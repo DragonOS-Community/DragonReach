@@ -9,7 +9,7 @@ use crate::{
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
-use super::UnitManager;
+
 
 lazy_static! {
     // 管理全局计时器任务
@@ -25,7 +25,6 @@ pub struct TimerManager {
     inner_timers: Vec<Timer>,
     timer_unit_map: RwLock<HashMap<usize, Arc<Mutex<TimerUnit>>>>, //id->TimerUnit
     id_table: RwLock<Vec<(usize, usize)>>, //.0是TimerUnit的id,.1是父Unit的id
-                                           //timer_event_table:
 }
 
 impl<'a> IntoIterator for &'a mut TimerManager {
@@ -80,30 +79,28 @@ impl TimerManager {
         drop(writer);
         //此处触发Timer_unit,不移除
         let reader = TIMER_TASK_MANAGER.read().unwrap();
-
+        let timer_unit_map = reader.timer_unit_map.read().unwrap();
         let mut inactive_unit: Vec<usize> = Vec::new();
-        for (_, timer_unit) in reader.timer_unit_map.read().unwrap().iter() {
+        for (_, timer_unit) in timer_unit_map.iter() {
             let mut timer_unit = timer_unit.lock().unwrap();
             if timer_unit.enter_inactive() {
                 inactive_unit.push(timer_unit.unit_id());
                 continue;
             }
             if timer_unit.check() {
+                //println!("unit id : {} , parent id : {} ",timer_unit.unit_id(),timer_unit.get_parent_unit());
                 let _ = timer_unit._run(); //运行作出相应操作
                 let id = timer_unit.get_parent_unit();
-                //timer_unit.mut_timer_part().update_next_trigger();
                 drop(timer_unit);
-                TimerManager::update_next_trigger(id, true);
+                TimerManager::update_next_trigger(id, true); //更新触发时间
             }
         }
 
-        for iter in inactive_unit {
+        for id in inactive_unit {//处理Inactive需要退出的计时器
             //println!("Prepared to exit...");
-            UnitManager::get_unit_with_id(&iter)
-                .unwrap()
-                .lock()
-                .unwrap()
-                .exit();
+            timer_unit_map.get(&id).unwrap().lock().unwrap().exit();
+
+            TimerManager::remove_timer_unit(id);
         }
     }
 
@@ -131,17 +128,10 @@ impl TimerManager {
     fn adjust_timevalue(unit_id: &usize, flag: bool /*1为启动0为退出 */) -> Vec<usize> {
         let mut result = Vec::new();
         let manager = TIMER_TASK_MANAGER.read().unwrap();
-
         for (self_id, parent_id) in manager.id_table.read().unwrap().iter() {
             if unit_id == parent_id {
-                let timer_unit_map = manager
-                    .timer_unit_map
-                    .read()
-                    .unwrap();
-                let  mut timer_unit=timer_unit_map.get(self_id)
-                    .unwrap()
-                    .lock()
-                    .unwrap();
+                let timer_unit_map = manager.timer_unit_map.read().unwrap();
+                let mut timer_unit = timer_unit_map.get(self_id).unwrap().lock().unwrap();
                 timer_unit.change_stage(flag);
                 result.push(*self_id);
             }
@@ -154,14 +144,16 @@ impl TimerManager {
         let manager = TIMER_TASK_MANAGER.read().unwrap();
 
         manager.timer_unit_map.write().unwrap().remove(&unit_id);
-        let index: usize = 0;
+        let mut index: usize = 0;
         let mut id_table = manager.id_table.write().unwrap();
         for (self_id, _) in id_table.iter() {
             //因为id是递增的，后续可优化为二分查找
             if unit_id == *self_id {
                 id_table.remove(index);
+                println!("remove id:{}", unit_id);
                 return;
             }
+            index = index + 1
         }
     }
 

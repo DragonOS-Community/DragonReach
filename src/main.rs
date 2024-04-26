@@ -13,7 +13,7 @@ use manager::{timer_manager::TimerManager, Manager};
 use parse::UnitParser;
 use systemctl::listener::Systemctl;
 
-use crate::{executor::Executor, time::timer::Timer};
+use crate::executor::Executor;
 
 pub struct FileDescriptor(usize);
 

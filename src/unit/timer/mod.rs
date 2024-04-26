@@ -31,24 +31,33 @@ impl Default for TimerUnit {
 
 impl Unit for TimerUnit {
     fn init(&mut self) {
+        // 初始化计时器单元
+        // 将单元状态设置为激活中
         self.unit_base.state = UnitState::Activating;
+        // 更新计时器部分的数据
         let part = &mut self.timer_part;
         part.remain_after_elapse = true;
 
+        // 设置初始触发时间
         let part = &mut self.timer_part;
         let now = Instant::now();
         part.last_trigger = now;
         part.now_time = now;
 
-        part.value.push(TimerVal::new(
-            TimerUnitAttr::OnActiveSec,
-            part.on_active_sec == Default::default(),
-            part.on_active_sec,
-            Default::default(),
-            Some(now + part.on_active_sec),
-        ));
-        //实现OnActiveSec的具体逻辑
+        // 如果设置了激活时的秒数，则添加一个计时器值
+        if part.on_active_sec != Default::default() {
+            part.value.push(TimerVal::new(
+                TimerUnitAttr::OnActiveSec,
+                false,
+                part.on_active_sec,
+                Default::default(),
+                Some(now + part.on_active_sec),
+            ));
+        }
 
+        // 实现OnActiveSec的具体逻辑
+
+        // 检查单元是否正在运行
         let unit_is_running = UnitManager::is_running_unit(&part.unit);
 
         if part.on_unit_active_sec != Default::default() {
@@ -64,7 +73,9 @@ impl Unit for TimerUnit {
                 Default::default(),
                 next_trigger,
             ));
-        } //实现OnUnitActiveSec的具体逻辑
+        }
+
+        // 实现OnUnitActiveSec的具体逻辑
 
         if part.on_unit_inactive_sec != Default::default() {
             part.value.push(TimerVal::new(
@@ -72,19 +83,24 @@ impl Unit for TimerUnit {
                 true,
                 part.on_unit_inactive_sec,
                 Default::default(),
-                None, /*无论刚开始服务有没有在运行，逻辑上这里都不会有值 */
+                None, /*无论服务是否在运行，这里都不会有值 */
             ));
-        } //实现OnUnitInactiveSec的具体逻辑
+        }
+
+        // 实现OnUnitInactiveSec的具体逻辑
         part.update_next_trigger();
         self._init();
+        // 将单元状态设置为激活
         self.unit_base.state = UnitState::Active;
     }
 
     fn set_unit_name(&mut self, name: String) {
+        // 设置单元的名称
         self.unit_base_mut().unit_name = name;
     }
 
     fn restart(&mut self) -> Result<(), RuntimeError> {
+        // 重启单元
         self.exit();
         self.init();
         Ok(())
@@ -94,19 +110,24 @@ impl Unit for TimerUnit {
     where
         Self: Sized,
     {
+        // 从给定的路径解析并创建计时器单元
         TimerParser::parse(path)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
+        // 将计时器单元转换为任何类型，用于多态调用
         self
     }
 
     fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        // 将计时器单元转换为任何可变类型，用于多态调用
         self
     }
 
     fn set_attr(&mut self, segment: Segment, attr: &str, val: &str) -> Result<(), ParseError> {
+        // 设置计时器单元的属性
         if segment != Segment::Timer {
+            // 如果段不是计时器段，则返回错误
             return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
         let attr_type = TIMER_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(
@@ -118,48 +139,57 @@ impl Unit for TimerUnit {
     }
 
     fn set_unit_base(&mut self, unit_base: BaseUnit) {
+        // 设置单元的基础信息
         self.unit_base = unit_base;
     }
 
     fn unit_type(&self) -> super::UnitType {
+        // 返回单元的类型
         self.unit_base.unit_type
     }
 
     fn unit_base(&self) -> &BaseUnit {
+        // 返回单元的基础信息
         &self.unit_base
     }
 
     fn unit_base_mut(&mut self) -> &mut BaseUnit {
+        // 返回单元的基础信息的可变引用
         &mut self.unit_base
     }
 
     fn unit_id(&self) -> usize {
+        // 返回单元的ID
         self.unit_base.unit_id
     }
 
     fn run(&mut self) -> Result<(), RuntimeError> {
-        //TODO!! 错误检查
-        if self.check() &&  UnitManager::contains_id(&self.timer_part.unit)  {
-            let _ = self._run(); //运行作出相应操作
+        //真正的run在_run中
+        if self.check() && UnitManager::contains_id(&self.timer_part.unit) {
+            // 如果单元检查通过并且单元管理器包含该单元，则运行
+            let _ = self._run(); // 运行单元
             let id = self.get_parent_unit();
+            // 更新下一个触发器
             TimerManager::update_next_trigger(id, true);
-        }else if !UnitManager::contains_id(&self.timer_part.unit) {
+        } else if !UnitManager::contains_id(&self.timer_part.unit) {
+            // 如果单元管理器不包含该单元，则打印错误信息
             println!("task error,unit does not exist")
         };
-        return Ok(());
+        Ok(())
     }
 
     fn exit(&mut self) {
         UnitManager::try_kill_running(self.unit_id());
-        TimerManager::remove_timer_unit(self.unit_id());
     }
 }
+
 impl TimerUnit {
-    pub fn _run(&mut self) -> Result<(), RuntimeError> { //到这里触发计时器对应的服务
+    pub fn _run(&mut self) -> Result<(), RuntimeError> {
+        //到这里触发计时器对应的服务
         let part = &mut self.timer_part;
         if part.value.is_empty() {
             //触发次数已尽
-            self.unit_base.state = UnitState::Deactivating;
+            self.unit_base.state = UnitState::Inactive;
         } else if matches!(
             part.value[0].attr,
             TimerUnitAttr::OnActiveSec | TimerUnitAttr::OnBootSec | TimerUnitAttr::OnStartUpSec
@@ -175,6 +205,7 @@ impl TimerUnit {
         //执行相应的unit单元
         if let Ok(_) = Executor::exec(part.unit) {
             self.unit_base.state = UnitState::Active;
+            part.last_trigger = Instant::now();
             return Ok(());
         } else {
             self.unit_base.state = UnitState::Failed;
@@ -188,31 +219,44 @@ impl TimerUnit {
 
     pub fn check(&mut self) -> bool {
         let part = &mut self.timer_part;
-        if UnitManager::is_running_unit(&part.unit) {
-            //在运行就不管了
+        //计时器不可用
+        if part.value.len() == 0 {
+            //不可能再触发
+            self.unit_base.state = UnitState::Inactive;
+        }
+        if self.unit_base.state == UnitState::Inactive
+        //可能是手动停止
+        {
+            return false;
+        }
+        if UnitManager::is_running_unit(&part.unit)  //在运行就不管了
+        || part.next_elapse_monotonic_or_boottime==None
+        //下次触发时间无限大
+        {
             return false;
         }
         part.now_time = Instant::now();
-        //计时器不可用
-        if self.unit_base.state == UnitState::Deactivating
-            || self.unit_base.state == UnitState::Inactive
-        {
-            return false;
-        }
 
         //到时间执行Timer所管理的Unit
-        if part.last_trigger + (part.last_trigger.elapsed())
-            >= part.next_elapse_monotonic_or_boottime
-        {
-            //  未进行错误处理
+        // println!(
+        //     "Now time::{:?},next_elapse_monotonic_or_boottime::{:?}_",
+        //     part.now_time,
+        //     part.next_elapse_monotonic_or_boottime.unwrap()
+        // );
 
+         //！！！此处判断在DragonOs有大问题！时间跨度很大，但在linux上正常运行
+        if part.now_time >= part.next_elapse_monotonic_or_boottime.unwrap() {
             //检查Timer管理的unit是否存在
             if let Some(_) = UnitManager::get_unit_with_id(&part.unit) {
-                // let _ = unit.lock().unwrap().run();//运行作出相应操作,check不负责此操作
+                // let _ = unit.lock().unwrap().run();//运行时作出相应操作,check不负责此操作
+                // println!(
+                //     "Now time::{:?},next_elapse_monotonic_or_boottime::{:?}_",
+                //     part.now_time,
+                //     part.next_elapse_monotonic_or_boottime.unwrap()
+                // );
                 return true;
             }
             println!("task error,unit does not exist");
-            return false;
         }
         return false;
     }
@@ -230,15 +274,10 @@ impl TimerUnit {
     }
     pub fn timer_init(&mut self) {
         let part = &mut self.timer_part;
-        part.next_elapse_monotonic_or_boottime = Instant::now();
+        part.next_elapse_monotonic_or_boottime = None;
         part.next_elapse_realtime = Instant::now();
         part.now_time = Instant::now();
         part.remain_after_elapse = true;
-    }
-
-    pub fn exec(&mut self) -> Result<(), RuntimeError> {
-        todo!()
-        //push_timer  1.检查时间是否正确 2.更新时间 3.做出操作
     }
 
     pub fn get_parent_unit(&mut self) -> usize {
@@ -246,25 +285,26 @@ impl TimerUnit {
     }
 
     pub fn enter_inactive(&mut self) -> bool {
+        //判断计时器是否失效
         if self.unit_base.state == UnitState::Inactive {
             return true;
         }
         false
     }
 
-    ///在unit exec或exit的时候改变TimerValue中OnUnitInactiveSec和OnUnitActiveSec的状态
+    ///在unit run或exit的时候改变TimerValue中OnUnitInactiveSec和OnUnitActiveSec的状态
     pub fn change_stage(&mut self, flag: bool /*1为启动0为退出 */) {
         for val in &mut self.timer_part.value {
             match val.attr {
                 TimerUnitAttr::OnUnitActiveSec => {
+                    val.disabled = false;
                     if flag {
-                        val.disabled = false;
                         val.next_elapse = Some(Instant::now() + val.val);
                     }
                 }
                 TimerUnitAttr::OnUnitInactiveSec => {
+                    val.disabled = false;
                     if !flag {
-                        val.disabled = false;
                         val.next_elapse = Some(Instant::now() + val.val);
                     }
                 }
@@ -279,7 +319,7 @@ unsafe impl Send for TimerUnit {}
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TimerPart {
-    //TODO! 未实现时间事件源的相关功能，目前还是循环确认Timer的情况
+    //TODO! 因此时DragonReach未实现时间事件源的相关功能，目前还是循环确认Timer的情况
     ///@brief 存储触发计时器的时间集合
     value: Vec<TimerVal>,
 
@@ -332,7 +372,7 @@ pub struct TimerPart {
     next_elapse_realtime: Instant,
 
     ///@brief 表示计时器下次单调时间或引导时间触发的时间戳
-    next_elapse_monotonic_or_boottime: Instant,
+    next_elapse_monotonic_or_boottime: Option<Instant>, //None表示无限大
 
     ///@brief 用于存储计时器最后一次触发的时间戳。
     last_trigger: Instant,
@@ -362,7 +402,7 @@ impl Default for TimerPart {
             remain_after_elapse: true,
 
             next_elapse_realtime: Instant::now(),
-            next_elapse_monotonic_or_boottime: Instant::now(),
+            next_elapse_monotonic_or_boottime: None,
             last_trigger: Instant::now(),
             now_time: Instant::now(),
         }
@@ -382,24 +422,23 @@ impl TimerPart {
             match val.attr {
                 TimerUnitAttr::OnUnitInactiveSec | TimerUnitAttr::OnUnitActiveSec => {
                     //更新OnUnitInactiveSec和OnUnitActiveSec类型的值
-                    if val.disabled {
+                    if val.disabled || val.next_elapse == None {
+                        //None表示此时无法确认下次触发时间
                         index = index + 1;
                         continue;
-                    } else if val.next_elapse == None {
-                        val.next_elapse = Some(self.now_time + val.val);
                     } else if val.next_elapse.unwrap() < self.now_time {
-                        self.next_elapse_monotonic_or_boottime = val.next_elapse.unwrap();
-                        val.next_elapse = Some(self.now_time + val.val);
+                        self.next_elapse_monotonic_or_boottime = val.next_elapse;
+                        val.next_elapse = None;
                         // println!("Update the time!");
-                        return ;
+                        return;
                     }
                 }
 
                 TimerUnitAttr::OnActiveSec | TimerUnitAttr::OnBootSec => {
                     if val.next_elapse.unwrap() < self.now_time {
-                        self.next_elapse_monotonic_or_boottime = val.next_elapse.unwrap();
-                        self.value.remove(index); //在这一步准备把iter从value里弹出去
-                        return ;
+                        self.next_elapse_monotonic_or_boottime = val.next_elapse;
+                        self.value.remove(index); //在这一步准备把index从value里弹出去
+                        return;
                     }
                 }
                 //TimerUnitAttr::OnStartUpSec => todo!(),
@@ -417,15 +456,16 @@ impl TimerPart {
         (Some(a), Some(b)) => a.cmp(&b),
     });
         if self.value.is_empty() || self.value[0].next_elapse == None {
-            //计时器里面已经没有值了
+            //无法得到下次触发的具体时间
             return;
         }
 
         // 从已排序的Vec中获取最早的定时器时间
-        self.next_elapse_monotonic_or_boottime = self.value[0].next_elapse.unwrap();
+        self.next_elapse_monotonic_or_boottime = self.value[0].next_elapse;
 
-        return ;
+        return;
     }
+    /// &str->attr的parse
     pub fn set_attr(&mut self, attr: &TimerUnitAttr, val: &str) -> Result<(), ParseError> {
         match attr {
             TimerUnitAttr::OnActiveSec => {
@@ -528,7 +568,7 @@ impl Default for TimerUnitAttr {
 
 #[derive(Debug, Clone)]
 pub struct TimerVal {
-    attr: TimerUnitAttr, //原TimerBase
+    attr: TimerUnitAttr,
     disabled: bool,
     val: Duration,
     //calendar_standard:Vec<CalendarStandard>,//只针对calendar事件
