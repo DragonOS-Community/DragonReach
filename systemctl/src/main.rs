@@ -1,7 +1,7 @@
 use std::{env, fs::File, io::Write};
 
-const REACH_PIPE_PATH: &str = "/home/fz/myetc/reach/ipc/ctl";
-//const REACH_PIPE_PATH: &str = "etc/reach/ipc/ctl";
+//const REACH_PIPE_PATH: &str = "/home/fz/myetc/reach/ipc/ctl";
+const REACH_PIPE_PATH: &str = "etc/reach/ipc/ctl";
 
 fn main() {
     let mut args: Vec<String> = env::args().collect();
