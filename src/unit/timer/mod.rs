@@ -244,7 +244,7 @@ impl TimerUnit {
         //     part.next_elapse_monotonic_or_boottime.unwrap()
         // );
 
-         //！！！此处判断在DragonOs有大问题！时间跨度很大，但在linux上正常运行
+        //！！！此处判断在DragonOs有大问题！时间跨度很大，但在linux上正常运行
         if part.now_time >= part.next_elapse_monotonic_or_boottime.unwrap() {
             //检查Timer管理的unit是否存在
             if let Some(_) = UnitManager::get_unit_with_id(&part.unit) {
@@ -580,7 +580,7 @@ impl TimerVal {
         attr: TimerUnitAttr,
         disabled: bool,
         val: Duration,
-        calendar_standard: Vec<CalendarStandard>,
+        _calendar_standard: Vec<CalendarStandard>, //等待后续迭代
         next_elapse: Option<Instant>,
     ) -> TimerVal {
         TimerVal {

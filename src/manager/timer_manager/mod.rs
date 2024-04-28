@@ -9,8 +9,6 @@ use crate::{
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
-
-
 lazy_static! {
     // 管理全局计时器任务
     static ref TIMER_TASK_MANAGER:RwLock<TimerManager> = RwLock::new(TimerManager {
@@ -96,7 +94,8 @@ impl TimerManager {
             }
         }
 
-        for id in inactive_unit {//处理Inactive需要退出的计时器
+        for id in inactive_unit {
+            //处理Inactive需要退出的计时器
             //println!("Prepared to exit...");
             timer_unit_map.get(&id).unwrap().lock().unwrap().exit();
 

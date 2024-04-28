@@ -23,8 +23,8 @@ use self::parse_util::UnitParseUtil;
 pub mod graph;
 pub mod parse_service;
 pub mod parse_target;
-pub mod parse_util;
 pub mod parse_timer;
+pub mod parse_util;
 
 //对应Unit段类型
 #[derive(PartialEq, Clone, Copy)]
@@ -223,7 +223,7 @@ impl UnitParser {
         match unit_type {
             UnitType::Service => ServiceParser::parse(path),
             UnitType::Target => TargetParser::parse(path),
-            UnitType::Timer=>TimerParser::parse(path),//新实现的timer_unit
+            UnitType::Timer => TimerParser::parse(path), //新实现的timer_unit
             _ => Err(ParseError::new(ParseErrorType::EFILE, path.to_string(), 0)),
         }
     }
@@ -325,7 +325,8 @@ impl UnitParser {
                 }
             };
             //首先匹配所有unit文件都有的unit段和install段
-            if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {//匹配Unit字段
+            if BASE_UNIT_ATTR_TABLE.get(attr_str).is_some() {
+                //匹配Unit字段
                 if segment != Segment::Unit {
                     return Err(ParseError::new(
                         ParseErrorType::EINVAL,
@@ -341,8 +342,8 @@ impl UnitParser {
                     e.set_linenum(i + 1);
                     return Err(e);
                 }
-            } 
-            else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {//匹配Install字段
+            } else if INSTALL_UNIT_ATTR_TABLE.get(attr_str).is_some() {
+                //匹配Install字段
                 if segment != Segment::Install {
                     return Err(ParseError::new(
                         ParseErrorType::EINVAL,
