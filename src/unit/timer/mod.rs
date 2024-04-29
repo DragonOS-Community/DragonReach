@@ -218,6 +218,7 @@ impl TimerUnit {
     }
 
     pub fn check(&mut self) -> bool {
+        let id: usize =    self.unit_id();
         let part = &mut self.timer_part;
         //计时器不可用
         if part.value.len() == 0 {
@@ -238,11 +239,11 @@ impl TimerUnit {
         part.now_time = Instant::now();
 
         //到时间执行Timer所管理的Unit
-        // println!(
-        //     "Now time::{:?},next_elapse_monotonic_or_boottime::{:?}_",
-        //     part.now_time,
-        //     part.next_elapse_monotonic_or_boottime.unwrap()
-        // );
+        println!(
+            "unit id: {} ,Now time::{:?},next_elapse_monotonic_or_boottime::{:?}_",
+            id,part.now_time,
+            part.next_elapse_monotonic_or_boottime.unwrap()
+        );
 
         //！！！此处判断在DragonOs有大问题！时间跨度很大，但在linux上正常运行
         if part.now_time >= part.next_elapse_monotonic_or_boottime.unwrap() {

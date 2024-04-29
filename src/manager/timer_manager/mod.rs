@@ -8,6 +8,7 @@ use crate::{
 };
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
+use libc::sleep;
 
 lazy_static! {
     // 管理全局计时器任务
@@ -52,14 +53,14 @@ impl TimerManager {
 
     pub fn push_timer_unit(unit: Arc<Mutex<TimerUnit>>) {
         let timemanager = TIMER_TASK_MANAGER.write().unwrap();
-        let mut unit_ = unit.lock().unwrap();
-        let unit_id = unit_.unit_id();
+        let mut unit_guard = unit.lock().unwrap();
+        let unit_id = unit_guard.unit_id();
         timemanager
             .id_table
             .write()
             .unwrap()
-            .push((unit_id, unit_.get_parent_unit()));
-        drop(unit_);
+            .push((unit_id, unit_guard.get_parent_unit()));
+        drop(unit_guard);
         timemanager
             .timer_unit_map
             .write()
@@ -71,6 +72,7 @@ impl TimerManager {
     ///
     /// 该方法在主循环中每循环一次检测一次，是伪计时器的主运行函数
     pub fn check_timer() {
+        unsafe { sleep(5) };
         let mut writer = TIMER_TASK_MANAGER.write().unwrap();
         //此处触发定时器，若定时器被触发，则移除
         writer.inner_timers.retain_mut(|x| !x.check());

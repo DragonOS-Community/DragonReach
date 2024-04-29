@@ -1,0 +1,7 @@
+[Unit]
+Description=a timer for the same_name.service
+
+[Timer]
+OnActiveSec=3s
+OnUnitActiveSec=5s
+Unit=test_timer_unit.service
