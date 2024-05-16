@@ -46,4 +46,9 @@ fmt-check:
 install:
 	mkdir -p $(INSTALL_DIR)/etc/reach/system
 	mkdir -p $(INSTALL_DIR)/etc/reach/ipc
+	mkdir -p $(INSTALL_DIR)/home
+	touch $(INSTALL_DIR)/etc/passwd
+	touch $(INSTALL_DIR)/etc/shadow
+	touch $(INSTALL_DIR)/etc/group
+	touch $(INSTALL_DIR)/etc/gshadow
 	RUSTFLAGS=$(RUSTFLAGS) cargo $(TOOLCHAIN) install --target $(RUST_TARGET) --path . --no-track --root $(INSTALL_DIR) --force
