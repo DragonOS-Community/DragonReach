@@ -35,8 +35,6 @@ impl Unit for TimerUnit {
         // 将单元状态设置为激活中
         self.unit_base.state = UnitState::Activating;
         // 更新计时器部分的数据
-        let part = &mut self.timer_part;
-        part.remain_after_elapse = true;
 
         // 设置初始触发时间
         let part = &mut self.timer_part;
@@ -130,12 +128,10 @@ impl Unit for TimerUnit {
             // 如果段不是计时器段，则返回错误
             return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
-        let attr_type = TIMER_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(
-            ParseErrorType::EINVAL,
-            String::new(),
-            0,
-        ));
-        return self.timer_part.set_attr(attr_type.unwrap(), val);
+        if let Some(attr_type) = TIMER_UNIT_ATTR_TABLE.get(attr) {
+            return self.timer_part.set_attr(attr_type, val);
+        }
+        Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0))
     }
 
     fn set_unit_base(&mut self, unit_base: BaseUnit) {
@@ -218,7 +214,6 @@ impl TimerUnit {
     }
 
     pub fn check(&mut self) -> bool {
-        let id: usize =    self.unit_id();
         let part = &mut self.timer_part;
         //计时器不可用
         if part.value.len() == 0 {
@@ -238,23 +233,9 @@ impl TimerUnit {
         }
         part.now_time = Instant::now();
 
-        //到时间执行Timer所管理的Unit
-        println!(
-            "unit id: {} ,Now time::{:?},next_elapse_monotonic_or_boottime::{:?}_",
-            id,part.now_time,
-            part.next_elapse_monotonic_or_boottime.unwrap()
-        );
-
-        //！！！此处判断在DragonOs有大问题！时间跨度很大，但在linux上正常运行
         if part.now_time >= part.next_elapse_monotonic_or_boottime.unwrap() {
             //检查Timer管理的unit是否存在
             if let Some(_) = UnitManager::get_unit_with_id(&part.unit) {
-                // let _ = unit.lock().unwrap().run();//运行时作出相应操作,check不负责此操作
-                // println!(
-                //     "Now time::{:?},next_elapse_monotonic_or_boottime::{:?}_",
-                //     part.now_time,
-                //     part.next_elapse_monotonic_or_boottime.unwrap()
-                // );
                 return true;
             }
             println!("task error,unit does not exist");
@@ -272,13 +253,6 @@ impl TimerUnit {
 
     pub fn mut_timer_part(&mut self) -> &mut TimerPart {
         &mut self.timer_part
-    }
-    pub fn timer_init(&mut self) {
-        let part = &mut self.timer_part;
-        part.next_elapse_monotonic_or_boottime = None;
-        part.next_elapse_realtime = Instant::now();
-        part.now_time = Instant::now();
-        part.remain_after_elapse = true;
     }
 
     pub fn get_parent_unit(&mut self) -> usize {

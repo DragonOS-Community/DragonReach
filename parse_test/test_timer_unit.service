@@ -3,5 +3,5 @@ Description=a test for timer_unit
 
 [Service]
 Type=simple
-ExecStart=/bin/ls
-#ExecStartPre=-/bin/about.elf
+ExecStart=-/bin/about.elf
+ExecStartPre=-/bin/clear

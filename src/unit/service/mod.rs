@@ -146,12 +146,10 @@ impl Unit for ServiceUnit {
         if segment != Segment::Service {
             return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
-        let attr_type = SERVICE_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(
-            ParseErrorType::EINVAL,
-            String::new(),
-            0,
-        ));
-        return self.service_part.set_attr(attr_type.unwrap(), val);
+        if let Some(attr_type) = SERVICE_UNIT_ATTR_TABLE.get(attr) {
+            return self.service_part.set_attr(attr_type, val);
+        }
+        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
     }
 
     fn set_unit_base(&mut self, base: BaseUnit) {

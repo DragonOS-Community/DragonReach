@@ -8,8 +8,6 @@ use crate::{
 };
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use libc::sleep;
-
 lazy_static! {
     // 管理全局计时器任务
     static ref TIMER_TASK_MANAGER:RwLock<TimerManager> = RwLock::new(TimerManager {
@@ -72,7 +70,6 @@ impl TimerManager {
     ///
     /// 该方法在主循环中每循环一次检测一次，是伪计时器的主运行函数
     pub fn check_timer() {
-        unsafe { sleep(5) };
         let mut writer = TIMER_TASK_MANAGER.write().unwrap();
         //此处触发定时器，若定时器被触发，则移除
         writer.inner_timers.retain_mut(|x| !x.check());
@@ -82,16 +79,16 @@ impl TimerManager {
         let timer_unit_map = reader.timer_unit_map.read().unwrap();
         let mut inactive_unit: Vec<usize> = Vec::new();
         for (_, timer_unit) in timer_unit_map.iter() {
-            let mut timer_unit = timer_unit.lock().unwrap();
-            if timer_unit.enter_inactive() {
-                inactive_unit.push(timer_unit.unit_id());
+            let mut unit_guard = timer_unit.lock().unwrap();
+            if unit_guard.enter_inactive() {
+                inactive_unit.push(unit_guard.unit_id());
                 continue;
             }
-            if timer_unit.check() {
+            if unit_guard.check() {
                 //println!("unit id : {} , parent id : {} ",timer_unit.unit_id(),timer_unit.get_parent_unit());
-                let _ = timer_unit._run(); //运行作出相应操作
-                let id = timer_unit.get_parent_unit();
-                drop(timer_unit);
+                let _ = unit_guard._run(); //运行作出相应操作
+                let id = unit_guard.get_parent_unit();
+                drop(unit_guard);
                 TimerManager::update_next_trigger(id, true); //更新触发时间
             }
         }

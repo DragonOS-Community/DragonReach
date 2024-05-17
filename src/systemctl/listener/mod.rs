@@ -48,10 +48,14 @@ impl Default for Command {
 pub struct Systemctl;
 
 impl Systemctl {
+    /// # 初始化系统服务控制 - 初始化系统服务控制管道
     pub fn init() {
         Self::init_ctl_pipe();
     }
-
+    /// # 初始化监听器 - 初始化系统服务控制命令监听器
+    ///
+    /// 打开系统服务控制命令的管道文件描述符，并设置为非阻塞模式。
+    ///
     pub fn init_listener() -> File {
         let fd = unsafe { libc::open(ctl_path().as_ptr(), libc::O_RDONLY | libc::O_NONBLOCK) };
         if fd < 0 {
@@ -59,7 +63,10 @@ impl Systemctl {
         }
         unsafe { File::from_raw_fd(fd) }
     }
-
+    /// # 监听控制命令 - 监听系统服务控制命令
+    ///
+    /// 持续从系统服务控制管道中读取命令。
+    ///
     pub fn ctl_listen() {
         let mut guard = CTL_READER.lock().unwrap();
         let mut s = String::new();
@@ -78,6 +85,10 @@ impl Systemctl {
         }
     }
 
+    /// # 检查控制管道是否存在 - 检查系统服务控制管道文件是否存在
+    ///
+    /// 返回管道文件是否存在。
+    ///
     fn is_ctl_exists() -> bool {
         if let Ok(metadata) = fs::metadata(DRAGON_REACH_CTL_PIPE) {
             metadata.is_file()
