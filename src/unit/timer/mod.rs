@@ -30,8 +30,8 @@ impl Default for TimerUnit {
 }
 
 impl Unit for TimerUnit {
+    /// 初始化计时器单元
     fn init(&mut self) {
-        // 初始化计时器单元
         // 将单元状态设置为激活中
         self.unit_base.state = UnitState::Activating;
         // 更新计时器部分的数据
@@ -91,39 +91,33 @@ impl Unit for TimerUnit {
         // 将单元状态设置为激活
         self.unit_base.state = UnitState::Active;
     }
-
+    /// 设置单元的名称
     fn set_unit_name(&mut self, name: String) {
-        // 设置单元的名称
         self.unit_base_mut().unit_name = name;
     }
-
+    /// 重启单元
     fn restart(&mut self) -> Result<(), RuntimeError> {
-        // 重启单元
         self.exit();
         self.init();
         Ok(())
     }
-
+    /// 从给定的路径解析并创建计时器单元
     fn from_path(path: &str) -> Result<usize, ParseError>
     where
         Self: Sized,
     {
-        // 从给定的路径解析并创建计时器单元
         TimerParser::parse(path)
     }
-
+    /// 将计时器单元转换为任何类型，用于多态调用
     fn as_any(&self) -> &dyn std::any::Any {
-        // 将计时器单元转换为任何类型，用于多态调用
         self
     }
-
+    /// 将计时器单元转换为任何可变类型，用于多态调用
     fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-        // 将计时器单元转换为任何可变类型，用于多态调用
         self
     }
-
+    /// 设置计时器单元的属性
     fn set_attr(&mut self, segment: Segment, attr: &str, val: &str) -> Result<(), ParseError> {
-        // 设置计时器单元的属性
         if segment != Segment::Timer {
             // 如果段不是计时器段，则返回错误
             return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
@@ -133,29 +127,24 @@ impl Unit for TimerUnit {
         }
         Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0))
     }
-
+    /// 设置单元的基础信息
     fn set_unit_base(&mut self, unit_base: BaseUnit) {
-        // 设置单元的基础信息
         self.unit_base = unit_base;
     }
-
+    /// 返回单元的类型
     fn unit_type(&self) -> super::UnitType {
-        // 返回单元的类型
         self.unit_base.unit_type
     }
-
+    /// 返回单元的基础信息
     fn unit_base(&self) -> &BaseUnit {
-        // 返回单元的基础信息
         &self.unit_base
     }
-
+    /// 返回单元的基础信息的可变引用
     fn unit_base_mut(&mut self) -> &mut BaseUnit {
-        // 返回单元的基础信息的可变引用
         &mut self.unit_base
     }
-
+    /// 返回单元的ID
     fn unit_id(&self) -> usize {
-        // 返回单元的ID
         self.unit_base.unit_id
     }
 
@@ -258,9 +247,8 @@ impl TimerUnit {
     pub fn get_parent_unit(&mut self) -> usize {
         self.timer_part().unit
     }
-
+    ///判断计时器是否失效
     pub fn enter_inactive(&mut self) -> bool {
-        //判断计时器是否失效
         if self.unit_base.state == UnitState::Inactive {
             return true;
         }
