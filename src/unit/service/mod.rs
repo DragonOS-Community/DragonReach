@@ -44,6 +44,7 @@ impl Default for ServiceType {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RestartOption {
+    //ServiceRestart
     AlwaysRestart, //总是重启
     OnSuccess,     //在该服务正常退出时
     OnFailure,     //在该服务启动失败时
@@ -145,12 +146,10 @@ impl Unit for ServiceUnit {
         if segment != Segment::Service {
             return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
         }
-        let attr_type = SERVICE_UNIT_ATTR_TABLE.get(attr).ok_or(ParseError::new(
-            ParseErrorType::EINVAL,
-            String::new(),
-            0,
-        ));
-        return self.service_part.set_attr(attr_type.unwrap(), val);
+        if let Some(attr_type) = SERVICE_UNIT_ATTR_TABLE.get(attr) {
+            return self.service_part.set_attr(attr_type, val);
+        }
+        return Err(ParseError::new(ParseErrorType::EINVAL, String::new(), 0));
     }
 
     fn set_unit_base(&mut self, base: BaseUnit) {
@@ -213,6 +212,7 @@ impl Unit for ServiceUnit {
 
     fn exit(&mut self) {
         ServiceExecutor::exit(self);
+        //改变计时器内部状态
     }
 
     fn restart(&mut self) -> Result<(), RuntimeError> {
@@ -234,7 +234,8 @@ impl ServiceUnit {
     }
 
     fn exec(&mut self) -> Result<(), RuntimeError> {
-        ServiceExecutor::exec(self)
+        let _ = ServiceExecutor::exec(self);
+        Ok(())
     }
 }
 
@@ -243,6 +244,7 @@ unsafe impl Sync for ServiceUnit {}
 unsafe impl Send for ServiceUnit {}
 
 pub enum ServiceUnitAttr {
+    //ServiceExecCommand+
     None,
     //Service段
     //定义启动时的进程行为

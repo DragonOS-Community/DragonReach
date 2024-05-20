@@ -9,15 +9,15 @@ mod time;
 mod unit;
 
 use error::ErrorFormat;
-use executor::Executor;
 use manager::{timer_manager::TimerManager, Manager};
 use parse::UnitParser;
 use systemctl::listener::Systemctl;
 
+use crate::executor::Executor;
+
 pub struct FileDescriptor(usize);
 
 const DRAGON_REACH_UNIT_DIR: &'static str = "/etc/reach/system/";
-
 fn main() {
     // 初始化
     Systemctl::init();
@@ -46,12 +46,12 @@ fn main() {
                 0
             }
         };
-
         if id != 0 {
             if let Err(e) = Executor::exec(id) {
                 eprintln!("Err:{}", e.error_format());
             }
         }
+        println!("Parse {} success!", path);
     }
 
     // 启动完服务后进入主循环

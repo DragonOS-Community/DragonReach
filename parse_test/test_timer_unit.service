@@ -1,0 +1,7 @@
+[Unit]
+Description=a test for timer_unit
+
+[Service]
+Type=simple
+ExecStart=-/bin/about.elf
+ExecStartPre=-/bin/clear

@@ -158,7 +158,7 @@ lazy_static! {
         let mut map = HashMap::new();
         map.insert("list-units", CommandOperation::ListUnits);
         map.insert("list-sockets", CommandOperation::UnSupported);
-        map.insert("list-timers", CommandOperation::UnSupported);
+        map.insert("list-timers", CommandOperation::ListTimers);
         map.insert("start", CommandOperation::Start);
         map.insert("stop", CommandOperation::Stop);
         map.insert("reload", CommandOperation::UnSupported);
@@ -263,6 +263,22 @@ lazy_static! {
 pub struct CtlParser;
 
 impl CtlParser {
+    /// # parse_ctl - 解析控制命令
+    ///
+    /// 该函数用于解析一个字符串形式的控制命令，并将其转换为`Command`
+    ///
+    /// ## 参数
+    ///
+    /// - s: &str，需要解析的控制命令字符串。
+    ///
+    /// ## 返回值
+    ///
+    /// - Ok(Command): 解析成功的控制命令。
+    /// - Err(ParseError): 解析失败时产生的错误。
+    ///
+    /// ## 错误处理
+    ///
+    /// 当输入的字符串不符合预期格式时，函数会返回一个`ParseError`错误。
     pub fn parse_ctl(s: &str) -> Result<Command, ParseError> {
         let mut words = s.split_whitespace().collect::<Vec<&str>>();
         let mut ctl = Command::default();

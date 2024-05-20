@@ -10,22 +10,22 @@ use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    // 对于启动后即使退出亦认为其为运行状态的特殊注册类Service,对于这类进程做一个标记
+    /// 对于启动后即使退出亦认为其为运行状态的特殊注册类Service,对于这类进程做一个标记
     static ref FLAG_RUNNING: RwLock<Vec<usize>> = RwLock::new(Vec::new());
 
-    // 任务等待队列，IDLE类型的service入队等待其它任务完成再执行
+    /// 任务等待队列，IDLE类型的service入队等待其它任务完成再执行
     static ref IDLE_SERVIEC_DEQUE: Mutex<VecDeque<usize>> = Mutex::new(VecDeque::new());
 
-    // id到unit的映射表，全局的Unit管理表
+    /// id到unit的映射表，全局的Unit管理表
     pub(super) static ref ID_TO_UNIT_MAP: RwLock<HashMap<usize,Arc<Mutex<dyn Unit>>>> = RwLock::new(HashMap::new());
 
-    // 辅助表，通过服务名映射其id
+    /// 辅助表，通过服务名映射其id
     static ref NAME_TO_UNIT_MAP: RwLock<HashMap<u64,usize>> = RwLock::new(HashMap::new());
 
-    // 全局运行中的Unit表
+    /// 全局运行中的Unit表
     pub(super) static ref RUNNING_TABLE: RwLock<RunningTableManager> = RwLock::new(RunningTableManager { running_table: HashMap::new() });
 
-    // CMD进程表，用于处理Unit的CMD派生进程(ExecStartPre等命令派生进程)
+    /// CMD进程表，用于处理Unit的CMD派生进程(ExecStartPre等命令派生进程)
     pub(super) static ref CMD_PROCESS_TABLE: RwLock<HashMap<u32,Mutex<Child>>> = RwLock::new(HashMap::new());
 }
 
@@ -92,6 +92,7 @@ impl UnitManager {
     }
 
     // 通过id获取到path
+    // ↑感觉是笔误，应该是通过path获取到id
     pub fn get_id_with_path(path: &str) -> Option<usize> {
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
