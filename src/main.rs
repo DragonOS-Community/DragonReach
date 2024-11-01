@@ -7,13 +7,13 @@ mod systemctl;
 mod task;
 mod time;
 mod unit;
-use std::thread;
+use crate::executor::Executor;
 use error::ErrorFormat;
 use manager::{timer_manager::TimerManager, Manager};
 use parse::UnitParser;
+use std::thread;
 use systemctl::listener::Systemctl;
 use unit::signal::init_signal_handler;
-use crate::executor::Executor;
 
 pub struct FileDescriptor(usize);
 

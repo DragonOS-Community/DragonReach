@@ -1,4 +1,4 @@
-use nix::sys::signal::{self, Signal, SigHandler};
+use nix::sys::signal::{self, SigHandler, Signal};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub static SIGCHILD_SIGNAL_RECEIVED: AtomicBool = AtomicBool::new(false);
@@ -6,7 +6,6 @@ pub static SIGCHILD_SIGNAL_RECEIVED: AtomicBool = AtomicBool::new(false);
 extern "C" fn handle_sigchld(_: libc::c_int) {
     SIGCHILD_SIGNAL_RECEIVED.store(true, Ordering::SeqCst);
 }
-
 
 pub fn init_signal_handler() {
     unsafe {

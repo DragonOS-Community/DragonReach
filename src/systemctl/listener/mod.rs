@@ -1,14 +1,14 @@
+use super::ctl_parser::{CommandOperation, CtlParser, Pattern};
+use super::{ctl_path, DRAGON_REACH_CTL_PIPE};
+use crate::error::ErrorFormat;
+use crate::manager::ctl_manager::CtlManager;
+use lazy_static::lazy_static;
 use std::fs::{self, File};
 use std::io::Read;
 use std::os::fd::FromRawFd;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use lazy_static::lazy_static;
-use crate::error::ErrorFormat;
-use crate::manager::ctl_manager::CtlManager;
-use super::ctl_parser::{CommandOperation, CtlParser, Pattern};
-use super::{ctl_path, DRAGON_REACH_CTL_PIPE};
 
 lazy_static! {
     static ref CTL_READER: Mutex<Arc<File>> = {
@@ -73,16 +73,14 @@ impl Systemctl {
         loop {
             s.clear();
             match guard.read_to_string(&mut s) {
-                Ok(size) if size > 0 => {
-                    match CtlParser::parse_ctl(&s) {
-                        Ok(cmd) => {
-                            let _ = CtlManager::exec_ctl(cmd);
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to parse command: {}", e.error_format());
-                        }
+                Ok(size) if size > 0 => match CtlParser::parse_ctl(&s) {
+                    Ok(cmd) => {
+                        let _ = CtlManager::exec_ctl(cmd);
                     }
-                }
+                    Err(e) => {
+                        eprintln!("Failed to parse command: {}", e.error_format());
+                    }
+                },
                 Ok(_) => {
                     // 如果读取到的大小为0，说明没有数据可读，适当休眠
                     thread::sleep(Duration::from_millis(100));

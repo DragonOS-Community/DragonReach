@@ -7,21 +7,20 @@ pub use unit_manager::*;
 use crate::executor::ExitStatus;
 
 use self::timer_manager::TimerManager;
+use crate::unit::signal::SIGCHILD_SIGNAL_RECEIVED;
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
 use nix::unistd::Pid;
 use std::sync::atomic::Ordering;
-use crate::unit::signal::SIGCHILD_SIGNAL_RECEIVED;
 pub struct Manager;
 
 impl Manager {
     /// ## 检查当前 DragonReach 运行的项目状态，并对其分发处理
     pub fn check_running_status() {
-
         // 检查是否收到 SIGCHLD 信号
         if SIGCHILD_SIGNAL_RECEIVED.load(Ordering::SeqCst) {
             println!("SIGNAL_RECEIVED");
             SIGCHILD_SIGNAL_RECEIVED.store(false, Ordering::SeqCst);
-    
+
             let mut exited_unit: Vec<(usize, ExitStatus)> = Vec::new();
             let mut running_manager = RUNNING_TABLE.write().unwrap();
             // 检查所有运行中的 Unit
@@ -31,10 +30,7 @@ impl Manager {
                 match waitpid(Some(pid), Some(WaitPidFlag::WNOHANG)) {
                     // 若 Unit 为正常退出，则将其加入退出列表
                     Ok(WaitStatus::Exited(_, status)) => {
-                        exited_unit.push((
-                            *unit.0,
-                            ExitStatus::from_exit_code(status),
-                        ));
+                        exited_unit.push((*unit.0, ExitStatus::from_exit_code(status)));
                     }
                     // 若 Unit 为被信号终止，则将其加入退出列表，并输出日志
                     Ok(WaitStatus::Signaled(_, signal, _)) => {
@@ -46,12 +42,12 @@ impl Manager {
                         eprintln!("unit waitpid error");
                     }
                     // 若 Unit 正常运行，则不做处理
-                    Ok(_)  => {}
+                    Ok(_) => {}
                 }
             }
 
             drop(running_manager);
-    
+
             // 处理退出的 Unit
             for tmp in exited_unit {
                 // 将该任务从运行表中移除
@@ -69,7 +65,7 @@ impl Manager {
 
                 // 更新属于该 Unit 的定时器任务
                 TimerManager::update_next_trigger(tmp.0, false);
-                
+
                 // 交付处理子进程退出后逻辑
                 let unit = UnitManager::get_unit_with_id(&tmp.0).unwrap();
                 unit.lock().unwrap().after_exit(tmp.1);
@@ -87,10 +83,10 @@ impl Manager {
     pub fn check_cmd_proc() {
         if SIGCHILD_SIGNAL_RECEIVED.load(Ordering::SeqCst) {
             SIGCHILD_SIGNAL_RECEIVED.store(false, Ordering::SeqCst);
-    
+
             let mut exited = Vec::new();
             let mut table = CMD_PROCESS_TABLE.write().unwrap();
-    
+
             for tuple in table.iter_mut() {
                 let pid = Pid::from_raw(tuple.1.lock().unwrap().id() as i32);
                 match waitpid(Some(pid), Some(WaitPidFlag::WNOHANG)) {
@@ -107,7 +103,7 @@ impl Manager {
                     }
                 }
             }
-    
+
             for id in exited {
                 table.remove(&id);
             }
