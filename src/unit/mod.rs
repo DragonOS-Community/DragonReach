@@ -14,7 +14,7 @@ use crate::parse::Segment;
 pub mod service;
 pub mod target;
 pub mod timer;
-
+pub mod signal;
 use self::target::TargetUnit;
 
 pub fn generate_unit_id() -> usize {
