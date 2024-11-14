@@ -16,7 +16,12 @@ pub struct Manager;
 impl Manager {
     /// ## 检查当前 DragonReach 运行的项目状态，并对其分发处理
     pub fn check_running_status() {
-        if SIGCHILD_SIGNAL_RECEIVED.compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst) {
+        if SIGCHILD_SIGNAL_RECEIVED.compare_exchange(
+            true,
+            false,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
             let mut exited_unit: Vec<(usize, ExitStatus)> = Vec::new();
             let mut running_manager = RUNNING_TABLE.write().unwrap();
             // 检查所有运行中的 Unit
@@ -77,7 +82,12 @@ impl Manager {
 
     /// ## 检查当前所有cmd进程的运行状态
     pub fn check_cmd_proc() {
-        if SIGCHILD_SIGNAL_RECEIVED.compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst) {
+        if SIGCHILD_SIGNAL_RECEIVED.compare_exchange(
+            true,
+            false,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
             let mut exited = Vec::new();
             let mut table = CMD_PROCESS_TABLE.write().unwrap();
 
