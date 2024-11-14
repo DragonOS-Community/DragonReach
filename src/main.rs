@@ -7,13 +7,13 @@ mod systemctl;
 mod task;
 mod time;
 mod unit;
-
+use crate::executor::Executor;
 use error::ErrorFormat;
 use manager::{timer_manager::TimerManager, Manager};
 use parse::UnitParser;
+use std::thread;
 use systemctl::listener::Systemctl;
-
-use crate::executor::Executor;
+use unit::signal::init_signal_handler;
 
 pub struct FileDescriptor(usize);
 
@@ -54,6 +54,13 @@ fn main() {
         println!("Parse {} success!", path);
     }
 
+    // 初始化信号处理程序
+    init_signal_handler();
+    // 监听systemctl
+    thread::spawn(move || {
+        Systemctl::ctl_listen();
+    });
+
     // 启动完服务后进入主循环
     loop {
         // 检查各服务运行状态
@@ -62,7 +69,5 @@ fn main() {
         Manager::check_cmd_proc();
         // 检查计时器任务
         TimerManager::check_timer();
-        // 监听systemctl
-        Systemctl::ctl_listen();
     }
 }
