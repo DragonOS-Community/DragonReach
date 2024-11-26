@@ -1,15 +1,14 @@
+use super::ctl_parser::{CommandOperation, CtlParser, Pattern};
+use super::{ctl_path, DRAGON_REACH_CTL_PIPE};
+use crate::error::ErrorFormat;
+use crate::manager::ctl_manager::CtlManager;
+use lazy_static::lazy_static;
 use std::fs::{self, File};
 use std::io::Read;
 use std::os::fd::FromRawFd;
 use std::sync::{Arc, Mutex};
-
-use lazy_static::lazy_static;
-
-use crate::error::ErrorFormat;
-use crate::manager::ctl_manager::CtlManager;
-
-use super::ctl_parser::{CommandOperation, CtlParser, Pattern};
-use super::{ctl_path, DRAGON_REACH_CTL_PIPE};
+use std::thread;
+use std::time::Duration;
 
 lazy_static! {
     static ref CTL_READER: Mutex<Arc<File>> = {
@@ -17,7 +16,7 @@ lazy_static! {
         Mutex::new(Arc::new(file))
     };
 }
-
+#[derive(Debug)]
 pub struct Command {
     pub(crate) operation: CommandOperation,
     pub(crate) args: Option<Vec<String>>,
@@ -68,18 +67,27 @@ impl Systemctl {
     /// 持续从系统服务控制管道中读取命令。
     ///
     pub fn ctl_listen() {
+        println!("ctl listen");
         let mut guard = CTL_READER.lock().unwrap();
         let mut s = String::new();
-        if let Ok(size) = guard.read_to_string(&mut s) {
-            if size == 0 {
-                return;
-            }
-            match CtlParser::parse_ctl(&s) {
-                Ok(cmd) => {
-                    let _ = CtlManager::exec_ctl(cmd);
+        loop {
+            s.clear();
+            match guard.read_to_string(&mut s) {
+                Ok(size) if size > 0 => match CtlParser::parse_ctl(&s) {
+                    Ok(cmd) => {
+                        let _ = CtlManager::exec_ctl(cmd);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse command: {}", e.error_format());
+                    }
+                },
+                Ok(_) => {
+                    // 如果读取到的大小为0，说明没有数据可读，适当休眠
+                    thread::sleep(Duration::from_millis(100));
                 }
-                Err(err) => {
-                    eprintln!("parse tcl command error: {}", err.error_format());
+                Err(e) => {
+                    eprintln!("Failed to read from pipe: {}", e);
+                    break;
                 }
             }
         }

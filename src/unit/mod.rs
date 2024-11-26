@@ -12,9 +12,9 @@ use crate::parse::parse_util::UnitParseUtil;
 use crate::parse::Segment;
 
 pub mod service;
+pub mod signal;
 pub mod target;
 pub mod timer;
-
 use self::target::TargetUnit;
 
 pub fn generate_unit_id() -> usize {
